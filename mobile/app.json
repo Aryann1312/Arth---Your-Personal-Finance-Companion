@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Gold & Loan Calculator",
+    "slug": "gold-loan-calculator",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAF8F5"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.goldloan.calculator",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FAF8F5"
+      }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-secure-store",
+      "expo-asset",
+      "expo-splash-screen"
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment & Credentials (NEVER commit secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+mobile/.env
+
+# Expo & Metro
+.expo/
+.expo-shared/
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Android / iOS Native Builds
+android/
+ios/
+*.apk
+*.aab
+
+# macOS / Windows OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary Screenshots & Dumps
+emulator_*.png
+*.png.dump
+scratch/
+.system_generated/
+
+# Jest coverage & reports
+coverage/
+.nyc_output/

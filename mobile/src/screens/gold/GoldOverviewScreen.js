@@ -22,10 +22,11 @@ import { ResponsiveContainer } from '../../components/ResponsiveContainer.js';
 import { COLORS, RADII, SPACING, formatINR } from '../../theme/index.js';
 
 import { apiRequest } from '../../services/api.js';
+import { useGoldPrice } from '../../context/GoldPriceContext.js';
 import { logger } from '../../services/eventLogger.js';
 
 export function GoldOverviewScreen({ navigation }) {
-  const [liveData, setLiveData] = useState(null);
+  const { goldPrice, loading: priceLoading, refreshGoldPrice, getRateForPurity, getRetailForPurity } = useGoldPrice();
   const [historyRecords, setHistoryRecords] = useState([]);
   const [historyStats, setHistoryStats] = useState(null);
   const [selectedRange, setSelectedRange] = useState('1Y');
@@ -34,24 +35,22 @@ export function GoldOverviewScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
-  // Fetch Live Rates
-  const loadLiveData = async () => {
-    try {
-      const res = await apiRequest('/gold/live');
-      if (res && res.data) {
-        setLiveData(res.data);
-      }
-    } catch (err) {
-      setError(err.message || 'Could not refresh live rate.');
-    }
-  };
-
   // Fetch Historical Series
   const loadHistory = async (range = selectedRange, purity = selectedPurity) => {
     try {
       const res = await apiRequest(`/gold/history?range=${range}&purity=${purity}`);
       if (res && res.records) {
-        setHistoryRecords(res.records);
+        let records = res.records;
+        // Align latest chart point with canonical price store
+        if (records.length > 0 && goldPrice?.inrPerGram?.[purity]) {
+          const canonicalCurrent = goldPrice.inrPerGram[purity];
+          records = [...records];
+          records[records.length - 1] = {
+            ...records[records.length - 1],
+            price: canonicalCurrent
+          };
+        }
+        setHistoryRecords(records);
         setHistoryStats(res.stats);
       }
     } catch (err) {
@@ -61,7 +60,7 @@ export function GoldOverviewScreen({ navigation }) {
 
   const loadAll = async () => {
     setError('');
-    await Promise.all([loadLiveData(), loadHistory()]);
+    await Promise.all([refreshGoldPrice(), loadHistory(selectedRange, selectedPurity)]);
     setLoading(false);
     setRefreshing(false);
   };
@@ -99,19 +98,23 @@ export function GoldOverviewScreen({ navigation }) {
   // Left Column: Live Spot Tickers & Purity Switcher
   const renderLeftColumn = (
     <View>
-      {/* Live Market Price Card */}
+      {/* 1. Indicative Benchmark Card (Before Duty & GST) */}
       <PearlCard goldTrim={true} style={styles.liveCard}>
         <View style={styles.liveHeaderRow}>
           <View style={styles.liveStatusRow}>
-            <View style={[styles.liveIndicatorDot, liveData?.isStale && styles.staleIndicatorDot]} />
-            <Text style={[styles.liveStatusText, liveData?.isStale && styles.staleStatusText]}>
-              {liveData?.statusLabel || 'Live Market Rate'}
+            <View style={[styles.liveIndicatorDot, (!goldPrice?.isLive) && styles.staleIndicatorDot]} />
+            <Text style={[styles.liveStatusText, (!goldPrice?.isLive) && styles.staleStatusText]}>
+              {goldPrice?.isLive ? 'LIVE' : (goldPrice?.statusLabel || 'Benchmark Settlement')}
             </Text>
           </View>
           <Text style={styles.currencyBadge}>INR (₹)</Text>
         </View>
 
-        {loading ? (
+        <Text style={styles.basisHeaderLabel}>
+          {goldPrice?.basisLabel || 'Indicative benchmark, before duty and GST'}
+        </Text>
+
+        {priceLoading ? (
           <View style={{ marginVertical: SPACING.md }}>
             <Skeleton height={38} width="60%" />
             <Skeleton height={18} width="40%" style={{ marginTop: 8 }} />
@@ -120,54 +123,99 @@ export function GoldOverviewScreen({ navigation }) {
           <View style={styles.priceHeroRow}>
             <View style={styles.priceBox}>
               <Text style={styles.pricePurityTitle}>24K Fine Gold (99.9%)</Text>
-              <Text style={styles.priceBig}>{formatINR(liveData?.price24kPerGram || 7850)}</Text>
-              <Text style={styles.priceUnitLabel}>per gram (₹ {formatINR(liveData?.price24kPer10g || 78500, false)} / 10g)</Text>
+              <Text style={styles.priceBig}>
+                {goldPrice?.inrPerGram?.['24K'] ? formatINR(goldPrice.inrPerGram['24K']) : 'Unavailable'}
+              </Text>
+              <Text style={styles.priceUnitLabel}>
+                per gram ({goldPrice?.inrPer10g?.['24K'] ? `${formatINR(goldPrice.inrPer10g['24K'])} / 10g` : 'Rate unavailable'})
+              </Text>
             </View>
 
             <View style={styles.priceDivider} />
 
             <View style={styles.priceBox}>
-              <Text style={styles.pricePurityTitle}>22K Standard Hallmark (91.6%)</Text>
-              <Text style={styles.priceBig}>{formatINR(liveData?.price22kPerGram || 7190)}</Text>
-              <Text style={styles.priceUnitLabel}>per gram (₹ {formatINR(liveData?.price22kPer10g || 71900, false)} / 10g)</Text>
+              <Text style={styles.pricePurityTitle}>22K Hallmark (91.6%)</Text>
+              <Text style={styles.priceBig}>
+                {goldPrice?.inrPerGram?.['22K'] ? formatINR(goldPrice.inrPerGram['22K']) : 'Unavailable'}
+              </Text>
+              <Text style={styles.priceUnitLabel}>
+                per gram ({goldPrice?.inrPer10g?.['22K'] ? `${formatINR(goldPrice.inrPer10g['22K'])} / 10g` : 'Rate unavailable'})
+              </Text>
             </View>
+          </View>
+        )}
+
+        {/* 18K Benchmark Row */}
+        {!priceLoading && goldPrice?.inrPerGram?.['18K'] && (
+          <View style={styles.row18k}>
+            <Text style={styles.pricePurityTitle}>18K Hallmark (75.0%):</Text>
+            <Text style={styles.price18kText}>
+              {formatINR(goldPrice.inrPerGram['18K'])} / g ({formatINR(goldPrice.inrPer10g['18K'])} / 10g)
+            </Text>
           </View>
         )}
 
         <View style={styles.metaRow}>
           <Text style={styles.metaText}>
-            Updated: {liveData?.updatedAt ? new Date(liveData.updatedAt).toLocaleTimeString('en-IN') : 'Just now'}
+            As of: {goldPrice?.asOfIST || 'Settlement close'}
           </Text>
-          <Text style={styles.metaText}>Source: {liveData?.sourceName || 'LBMA / WGC'}</Text>
+          <Text style={styles.metaText}>Source: {goldPrice?.sourceName || 'World Gold Council & LBMA'}</Text>
         </View>
 
-        {liveData?.isStale && (
+        {goldPrice?.isStale && (
           <View style={styles.staleAlertBox}>
             <Text style={styles.staleAlertText}>
-              ⚠️ {liveData.staleWarning || 'Displaying last verified settlement price. Live feed reconnecting.'}
+              ⚠️ {goldPrice.staleWarning || 'Displaying last verified settlement price. Live market feed reconnecting.'}
             </Text>
           </View>
         )}
       </PearlCard>
 
-      {/* Purity Hallmark Selector */}
+      {/* 2. Indian Domestic Retail Estimate Card */}
+      <PearlCard style={styles.retailCard}>
+        <Text style={styles.retailCardTitle}>Indian Retail Estimate</Text>
+        <Text style={styles.retailCardSub}>
+          Includes 6% Basic Customs Duty (as of Union Budget July 2024), 1% local premium, and 3% domestic GST.
+        </Text>
+        <View style={styles.retailGrid}>
+          <View style={styles.retailCol}>
+            <Text style={styles.retailColLabel}>24K Retail</Text>
+            <Text style={styles.retailColPrice}>
+              {goldPrice?.retailEstimatePerGram?.['24K'] ? formatINR(goldPrice.retailEstimatePerGram['24K']) : 'Unavailable'}
+            </Text>
+          </View>
+          <View style={styles.retailCol}>
+            <Text style={styles.retailColLabel}>22K Retail</Text>
+            <Text style={styles.retailColPrice}>
+              {goldPrice?.retailEstimatePerGram?.['22K'] ? formatINR(goldPrice.retailEstimatePerGram['22K']) : 'Unavailable'}
+            </Text>
+          </View>
+          <View style={styles.retailCol}>
+            <Text style={styles.retailColLabel}>18K Retail</Text>
+            <Text style={styles.retailColPrice}>
+              {goldPrice?.retailEstimatePerGram?.['18K'] ? formatINR(goldPrice.retailEstimatePerGram['18K']) : 'Unavailable'}
+            </Text>
+          </View>
+        </View>
+      </PearlCard>
+
+      {/* Purity Hallmark Selector (24K, 22K, 18K) */}
       <View style={styles.purityToggleRow}>
-        <TouchableOpacity
-          onPress={() => handlePurityChange('24K')}
-          style={[styles.purityToggleBtn, selectedPurity === '24K' && styles.purityToggleBtnActive]}
-        >
-          <Text style={[styles.purityToggleText, selectedPurity === '24K' && styles.purityToggleTextActive]}>
-            24K (99.9% Pure)
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => handlePurityChange('22K')}
-          style={[styles.purityToggleBtn, selectedPurity === '22K' && styles.purityToggleBtnActive]}
-        >
-          <Text style={[styles.purityToggleText, selectedPurity === '22K' && styles.purityToggleTextActive]}>
-            22K (91.6% Hallmark)
-          </Text>
-        </TouchableOpacity>
+        {['24K', '22K', '18K'].map((p) => {
+          const isSelected = selectedPurity === p;
+          const sub = p === '24K' ? '99.9%' : p === '22K' ? '91.6%' : '75.0%';
+          return (
+            <TouchableOpacity
+              key={p}
+              onPress={() => handlePurityChange(p)}
+              style={[styles.purityToggleBtn, isSelected && styles.purityToggleBtnActive]}
+            >
+              <Text style={[styles.purityToggleText, isSelected && styles.purityToggleTextActive]}>
+                {p} ({sub})
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Navigation Quick Actions */}
@@ -306,6 +354,64 @@ const styles = StyleSheet.create({
     borderRadius: RADII.sm,
     borderWidth: 1,
     borderColor: COLORS.borderGold
+  },
+  basisHeaderLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.goldDeep,
+    marginBottom: SPACING.sm
+  },
+  row18k: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: SPACING.xs,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+    marginTop: 4
+  },
+  price18kText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.textPrimary
+  },
+  retailCard: {
+    padding: SPACING.md,
+    marginTop: SPACING.md,
+    backgroundColor: '#FAF5EE',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.25)'
+  },
+  retailCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.goldDeep,
+    marginBottom: 2
+  },
+  retailCardSub: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    lineHeight: 15,
+    marginBottom: SPACING.sm
+  },
+  retailGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  retailCol: {
+    flex: 1,
+    alignItems: 'center'
+  },
+  retailColLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textSecondary
+  },
+  retailColPrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    marginTop: 2
   },
   priceHeroRow: {
     paddingVertical: SPACING.xs

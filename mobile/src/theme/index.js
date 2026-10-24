@@ -7,7 +7,7 @@
 import { useWindowDimensions } from 'react-native';
 import { getResponsiveLayout } from './responsive.js';
 
-export { BREAKPOINTS, getResponsiveLayout, formatINR } from './responsive.js';
+export { BREAKPOINTS, getResponsiveLayout, formatINR, formatCompactINR } from './responsive.js';
 
 export const COLORS = {
   // Pearl White luxury surfaces

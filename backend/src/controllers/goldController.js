@@ -134,7 +134,7 @@ export async function getSourceInfo(req, res) {
       formula: 'INR/gram = (XAU_USD / 31.1034768) * USD_INR * purityFactor',
       troyOunceGrams: 31.1034768,
       purityFactors: {
-        '24K': 0.999,
+        '24K': 1.0,
         '22K': 0.916,
         '18K': 0.750
       },

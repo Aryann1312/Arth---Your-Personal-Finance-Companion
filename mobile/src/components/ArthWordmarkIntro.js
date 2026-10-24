@@ -2,21 +2,23 @@
  * @file ArthWordmarkIntro.js
  * @description Master "Arth" Opening Animation Component (React Native / Expo Go).
  *
- * Architecture:
+ * Architecture & Features:
  * - Driven from ONE Reanimated shared value `frame` running linearly from 0 to totalFrames at 30 fps.
- * - Every block, deck card, tab, and letter is computed in worklets (useAnimatedStyle).
- * - Mounts/renders strictly visible elements per frame; letters are hard-cut to Ultra font glyphs.
- * - Zero web-only code; 100% UI thread execution at 60 fps.
+ * - Every block, card, tab, and letter is a pure function of `frame`, computed in worklets (useAnimatedStyle).
+ * - 100% UI thread execution at 60 fps; zero web-only code.
+ * - Measured advance widths at runtime with hidden Text (onLayout) at reference fontSize.
+ * - Scales through constant fit factor: fit = min(1, windowWidth * 0.92 / max(letterRowWidth, blockRowWidth)).
+ * - Vertically centered on the full ink box (square plus tallest tab).
+ * - Instant tap-to-skip, OS Reduce Motion compliance, and soft gold shimmer.
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   useWindowDimensions,
-  Platform,
   AccessibilityInfo
 } from 'react-native';
 import Animated, {
@@ -62,12 +64,12 @@ export const DEFAULT_TAB_CONFIG = {
   }
 };
 
-// Default reference advance widths for "Arth" at reference fontSize = 160 in Ultra font
-const DEFAULT_ADVANCE_WIDTHS = {
-  A: 150,
-  r: 82,
-  t: 76,
-  h: 102
+// Default reference advance width ratios for "Arth" in Ultra font (advanceWidth / fontSize)
+const DEFAULT_ADVANCE_RATIOS = {
+  A: 71.25 / 76, // ~0.9375
+  r: 38.95 / 76, // ~0.5125
+  t: 36.1 / 76,  // ~0.4750
+  h: 48.45 / 76  // ~0.6375
 };
 
 export function ArthWordmarkIntro({
@@ -100,14 +102,24 @@ export function ArthWordmarkIntro({
   // Font family name
   fontFamily = 'Ultra_400Regular'
 }) {
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
   const [reduceMotion, setReduceMotion] = useState(false);
   const [measuredWidths, setMeasuredWidths] = useState({});
 
-  // Frame Driver Shared Value (0 to totalFrames)
+  const onFinishRef = useRef(onFinish);
+  useEffect(() => {
+    onFinishRef.current = onFinish;
+  }, [onFinish]);
+
+  const onSkipRef = useRef(onSkip);
+  useEffect(() => {
+    onSkipRef.current = onSkip;
+  }, [onSkip]);
+
+  // Single Reanimated Shared Value driving all choreography (0 to totalFrames)
   const frame = useSharedValue(0);
 
-  // Compute choreography timelines
+  // Compute choreography timelines via pure frame math
   const timing = useMemo(() => {
     return computeSwapFrames({
       totalCards,
@@ -126,17 +138,21 @@ export function ArthWordmarkIntro({
 
   // Check OS Reduce Motion setting
   useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(enabled => {
+    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
       if (enabled) {
         setReduceMotion(true);
       }
     });
   }, []);
 
-  // Compute character widths (measured or tuned defaults)
+  // Compute character advance widths (dynamically measured or scaled defaults)
   const characters = useMemo(() => text.split(''), [text]);
   const letterAdvanceWidths = useMemo(() => {
-    return characters.map(char => measuredWidths[char] || DEFAULT_ADVANCE_WIDTHS[char] || fontSize * 0.55);
+    return characters.map((char) => {
+      if (measuredWidths[char]) return measuredWidths[char];
+      const fallbackRatio = DEFAULT_ADVANCE_RATIOS[char] || 0.6;
+      return fontSize * fallbackRatio;
+    });
   }, [characters, measuredWidths, fontSize]);
 
   const rawLetterRowWidth = useMemo(() => {
@@ -147,45 +163,37 @@ export function ArthWordmarkIntro({
   const rawBlockGap = rawSide * blockGapRatio;
   const rawBlockRowWidth = characters.length * rawSide + (characters.length - 1) * rawBlockGap;
 
-  // Responsive Fit Factor
-  // min(1, windowWidth * 0.92 / max(letterRowWidth, blockRowWidth))
+  // Fit factor: fit = min(1, windowWidth * 0.92 / max(letterRowWidth, blockRowWidth))
   const fit = useMemo(() => {
     const maxWidth = Math.max(rawLetterRowWidth, rawBlockRowWidth);
-    const availableWidth = windowWidth * 0.92;
+    const availableWidth = (windowWidth || 390) * 0.92;
     return maxWidth > 0 ? Math.min(1, availableWidth / maxWidth) : 1;
   }, [windowWidth, rawLetterRowWidth, rawBlockRowWidth]);
 
-  // Scaled dimensions
+  // Fold fit into every measurement and font size (constant scale, letters rasterize once)
   const scaledFontSize = fontSize * fit;
   const side = rawSide * fit;
-  const cornerRadius = rawSide * cornerRadiusRatio * fit;
-  const blockGap = rawBlockGap * fit;
+  const cornerRadius = side * cornerRadiusRatio;
   const maxLift = side * liftRatio;
-
-  // Horizontal layout slots:
-  // Center the wordmark around x = 0
   const letterRowWidth = rawLetterRowWidth * fit;
+  const baselineOffset = side * baselineOffsetRatio;
+
+  // Horizontal layout slots: position each letter within letterRowWidth
   const letterPositions = useMemo(() => {
-    let currentX = -letterRowWidth / 2;
-    return letterAdvanceWidths.map(rawW => {
+    let curX = 0;
+    return letterAdvanceWidths.map((rawW) => {
       const w = rawW * fit;
-      const left = currentX;
-      const center = currentX + w / 2;
-      currentX += w;
+      const left = curX;
+      const center = curX + w / 2;
+      curX += w;
       return { left, center, width: w };
     });
-  }, [letterAdvanceWidths, fit, letterRowWidth]);
+  }, [letterAdvanceWidths, fit]);
 
-  // Compute block target positions:
-  // Each block aligns with its letter center for pixel-stable resolve
-  const blockTargetPositions = useMemo(() => {
-    return letterPositions.map(pos => pos.center);
-  }, [letterPositions]);
-
-  // Max tab height for vertical ink box centering
+  // Max tab height for vertical ink box calculation (vertically center on ink box)
   const maxTabHeight = useMemo(() => {
     let maxRatio = 0;
-    characters.forEach(char => {
+    characters.forEach((char) => {
       const cfg = tabConfig[char];
       if (cfg && cfg.heightRatio > maxRatio) {
         maxRatio = cfg.heightRatio;
@@ -194,19 +202,20 @@ export function ArthWordmarkIntro({
     return maxRatio * side;
   }, [characters, tabConfig, side]);
 
-  // Vertical center offset to align ink box (side + maxTabHeight)
-  const verticalCenterOffset = maxTabHeight / 2;
+  // Total ink box stage dimensions (stage is centered dead-middle of screen)
+  const stageHeight = side + maxTabHeight + baselineOffset;
+  const deckLeft = (letterRowWidth - side) / 2;
 
   // Animation playback controller
   const handleComplete = useCallback(() => {
-    if (onFinish) {
-      onFinish();
+    if (onFinishRef.current) {
+      onFinishRef.current();
     }
-  }, [onFinish]);
+  }, []);
 
   useEffect(() => {
     if (reduceMotion) {
-      // Show finished wordmark statically for 800ms
+      // Honor Reduce Motion: show finished wordmark statically for 800ms
       frame.value = totalFrames;
       const timer = setTimeout(() => {
         handleComplete();
@@ -214,7 +223,7 @@ export function ArthWordmarkIntro({
       return () => clearTimeout(timer);
     }
 
-    // Drive Reanimated shared value linearly
+    // Drive Reanimated shared value linearly at 30 fps
     frame.value = 0;
     const duration = ((totalFrames / 30) * 1000) / speed;
 
@@ -224,7 +233,7 @@ export function ArthWordmarkIntro({
         duration,
         easing: Easing.linear
       },
-      finished => {
+      (finished) => {
         if (finished) {
           runOnJS(handleComplete)();
         }
@@ -232,20 +241,20 @@ export function ArthWordmarkIntro({
     );
   }, [reduceMotion, totalFrames, speed, handleComplete]);
 
-  // Skip handler
+  // Tap-to-skip handler
   const handleSkipPress = () => {
     frame.value = totalFrames;
-    if (onSkip) {
-      onSkip();
-    } else if (onFinish) {
-      onFinish();
+    if (onSkipRef.current) {
+      onSkipRef.current();
+    } else if (onFinishRef.current) {
+      onFinishRef.current();
     }
   };
 
-  // Measure hidden letter widths
+  // Measure runtime letter widths
   const handleMeasureLetter = (char, measuredW) => {
     if (measuredW && (!measuredWidths[char] || Math.abs(measuredWidths[char] - measuredW) > 1)) {
-      setMeasuredWidths(prev => ({
+      setMeasuredWidths((prev) => ({
         ...prev,
         [char]: measuredW
       }));
@@ -256,27 +265,26 @@ export function ArthWordmarkIntro({
   // ANIMATED STYLES (Worklets)
   // =========================================================================
 
-  // 1. Deck Container (Frame 0 to 38)
+  // 1. Deck Container (Frames 0 to 38 + Dip)
   const deckContainerStyle = useAnimatedStyle(() => {
     'worklet';
     const f = frame.value;
-    if (f > collapseAt + 2) {
+    if (f > collapseAt + 3) {
       return { display: 'none' };
     }
 
     // Deck Lift & Fall:
-    // Rises from frame 2 to frame 29 with spring ease out
-    // Falls from frame 29 to frame 38 (9 frames) with IN_EASE
+    // Starts frame 2 with spring-like ease out, falls back with IN_EASE over 9 frames before collapseAt
     let currentLift = 0;
-    if (f >= 2 && f <= 29) {
-      const progress = (f - 2) / 27;
+    if (f >= 2 && f <= collapseAt - 9) {
+      const progress = (f - 2) / (collapseAt - 11);
       currentLift = maxLift * OUT_EASE(progress);
-    } else if (f > 29 && f <= collapseAt) {
-      const fallProgress = (f - 29) / 9;
+    } else if (f > collapseAt - 9 && f <= collapseAt) {
+      const fallProgress = (f - (collapseAt - 9)) / 9;
       currentLift = maxLift * (1 - IN_EASE(fallProgress));
     }
 
-    // DIP (frames 38 to 41): One-frame anticipation squash
+    // DIP (collapseAt to collapseAt + 3): 1-frame anticipation squash
     let dipScaleY = 1;
     let dipScaleX = 1;
     let dipLift = 0;
@@ -297,17 +305,18 @@ export function ArthWordmarkIntro({
     };
   });
 
-  // Shimmer Sweep Style (frames 112 to 132)
+  // 2. Shimmer Sweep Style (soft gold shimmer sweeps once after resolve)
   const shimmerStyle = useAnimatedStyle(() => {
     'worklet';
     const f = frame.value;
-    if (f < 112 || f > 136 || reduceMotion) {
+    if (f < 114 || f > 138 || reduceMotion) {
       return { opacity: 0 };
     }
-    const p = (f - 112) / 24;
-    const translateX = -letterRowWidth / 2 + p * (letterRowWidth + 120);
+    const p = (f - 114) / 24;
+    const sweepRange = letterRowWidth + 100;
+    const translateX = -50 + p * sweepRange;
     return {
-      opacity: 0.45 * Math.sin(p * Math.PI),
+      opacity: 0.5 * Math.sin(p * Math.PI),
       transform: [{ translateX }]
     };
   });
@@ -326,27 +335,39 @@ export function ArthWordmarkIntro({
           <Text
             key={`measure_${char}_${i}`}
             allowFontScaling={false}
-            style={[styles.referenceText, { fontSize, fontFamily }]}
-            onLayout={e => handleMeasureLetter(char, e.nativeEvent.layout.width)}
+            style={[styles.referenceText, { fontSize: scaledFontSize, fontFamily }]}
+            onLayout={(e) => handleMeasureLetter(char, e.nativeEvent.layout.width)}
           >
             {char}
           </Text>
         ))}
       </View>
 
-      {/* Main Centered Stage */}
+      {/* Main Centered Stage (Dimensions equal the ink box, centered dead middle of screen) */}
       <View
         style={[
           styles.stage,
           {
-            transform: [{ translateY: verticalCenterOffset }]
+            width: letterRowWidth,
+            height: stageHeight
           }
         ]}
       >
         {/* ===================================================================
             PHASE 1 & 2: LEAD SQUARE & DECK CARDS (Frames 0 - 38)
             =================================================================== */}
-        <Animated.View style={[styles.deckContainer, deckContainerStyle]}>
+        <Animated.View
+          style={[
+            styles.deckContainer,
+            {
+              left: deckLeft,
+              bottom: baselineOffset,
+              width: side,
+              height: side
+            },
+            deckContainerStyle
+          ]}
+        >
           {/* 5 Colored Deck Cards behind lead square */}
           {Array.from({ length: 5 }).map((_, cardIndex) => {
             const trailingIndex = cardIndex + 1; // 1 to 5
@@ -355,7 +376,6 @@ export function ArthWordmarkIntro({
               <TrailingDeckCard
                 key={`deck_card_${cardIndex}`}
                 cardIndex={trailingIndex}
-                totalCards={totalCards}
                 side={side}
                 cornerRadius={cornerRadius}
                 color={cardColor}
@@ -379,14 +399,14 @@ export function ArthWordmarkIntro({
             PHASE 4, 5, 6: SPLITTING BLOCKS & RESOLVED LETTERS (Frame 40+)
             =================================================================== */}
         {characters.map((char, index) => {
-          const charCue = cues.find(c => c.letterIdx === index) || {
+          const charCue = cues.find((c) => c.letterIdx === index) || {
             cueFrame: 94,
             flashEndFrame: 97,
             swapFrame: 99
           };
           const charRank = splitRanks[index] || 0;
-          const targetX = blockTargetPositions[index] || 0;
-          const letterPos = letterPositions[index] || { left: 0, width: side };
+          const letterPos = letterPositions[index] || { left: 0, center: side / 2, width: side };
+          const targetDeltaX = letterPos.center - side / 2 - deckLeft;
           const tab = tabConfig[char];
           const flashColor = deckColors[charCue.step % deckColors.length];
 
@@ -394,14 +414,15 @@ export function ArthWordmarkIntro({
             <React.Fragment key={`letter_unit_${char}_${index}`}>
               {/* Animated Block (Visible from splitStart to swapFrame) */}
               <LetterBlock
-                index={index}
                 char={char}
                 side={side}
                 cornerRadius={cornerRadius}
                 rank={charRank}
                 splitStart={splitStart}
                 cue={charCue}
-                targetX={targetX}
+                deckLeft={deckLeft}
+                baselineOffset={baselineOffset}
+                targetDeltaX={targetDeltaX}
                 ink={ink}
                 flashColor={flashColor}
                 tab={tab}
@@ -417,7 +438,7 @@ export function ArthWordmarkIntro({
                 left={letterPos.left}
                 width={letterPos.width}
                 side={side}
-                baselineOffsetRatio={baselineOffsetRatio}
+                baselineOffset={baselineOffset}
                 swapFrame={charCue.swapFrame}
                 frame={frame}
               />
@@ -432,7 +453,8 @@ export function ArthWordmarkIntro({
             styles.shimmerBar,
             {
               width: 50 * fit,
-              height: (side + maxTabHeight) * 1.2
+              height: (side + maxTabHeight) * 1.3,
+              bottom: 0
             },
             shimmerStyle
           ]}
@@ -446,7 +468,7 @@ export function ArthWordmarkIntro({
         </Animated.View>
       </View>
 
-      {/* Skip Prompt Ticker */}
+      {/* Skip Prompt */}
       <View style={styles.skipPromptContainer}>
         <Text style={styles.skipPromptText}>Tap to skip</Text>
       </View>
@@ -459,8 +481,9 @@ export function ArthWordmarkIntro({
 // ===========================================================================
 
 /**
- * Lead Card in the deck (scales up from 0 to 1 off baseline in frames 0-9,
- * performs full 360 rotation along with deck until collapse).
+ * Lead Card in the deck:
+ * - Scales up 0 to 1 off baseline in frames 0-9 (OUT_EASE).
+ * - Performs full 360 rotation along with deck until collapseAt (SPIN_EASE).
  */
 function LeadDeckSquare({ side, cornerRadius, ink, collapseAt, frame }) {
   const animatedStyle = useAnimatedStyle(() => {
@@ -476,7 +499,7 @@ function LeadDeckSquare({ side, cornerRadius, ink, collapseAt, frame }) {
       scale = OUT_EASE(f / 9);
     }
 
-    // 360 degree rotation using SPIN_EASE
+    // 360 degree rotation using SPIN_EASE around bottom-center pivot
     let rotateDeg = 0;
     if (f <= collapseAt) {
       const progress = Math.min(Math.max(f / collapseAt, 0), 1);
@@ -573,7 +596,9 @@ function LetterBlock({
   rank,
   splitStart,
   cue,
-  targetX,
+  deckLeft,
+  baselineOffset,
+  targetDeltaX,
   ink,
   flashColor,
   tab,
@@ -600,11 +625,11 @@ function LetterBlock({
       return { display: 'none' };
     }
 
-    // Horizontal travel: 5 frames with OUT_EASE
+    // Horizontal travel: 5 frames with OUT_EASE from center to target slot
     let currentX = 0;
     if (f >= blockStartFrame) {
       const travelProgress = Math.min(Math.max((f - blockStartFrame) / 5, 0), 1);
-      currentX = targetX * OUT_EASE(travelProgress);
+      currentX = targetDeltaX * OUT_EASE(travelProgress);
     }
 
     // Color: flash one deck color for 3 frames, then return to ink
@@ -648,9 +673,10 @@ function LetterBlock({
       style={[
         styles.blockWrapper,
         {
+          left: deckLeft,
+          bottom: baselineOffset,
           width: side,
           height: side,
-          marginLeft: -side / 2, // Centered at local origin
           borderTopLeftRadius: blockTopLeftRadius,
           borderTopRightRadius: blockTopRightRadius,
           borderBottomLeftRadius: cornerRadius,
@@ -691,13 +717,10 @@ function ResolvedLetter({
   left,
   width,
   side,
-  baselineOffsetRatio,
+  baselineOffset,
   swapFrame,
   frame
 }) {
-  // Baseline adjustment so text sits precisely at baseline
-  const baselineOffset = side * baselineOffsetRatio;
-
   const letterStyle = useAnimatedStyle(() => {
     'worklet';
     const f = frame.value;
@@ -719,7 +742,8 @@ function ResolvedLetter({
         {
           left,
           width,
-          bottom: -baselineOffset
+          height: side,
+          bottom: baselineOffset
         },
         letterStyle
       ]}
@@ -731,7 +755,8 @@ function ResolvedLetter({
           {
             fontSize,
             fontFamily,
-            color: ink
+            color: ink,
+            lineHeight: side * 1.02
           }
         ]}
       >
@@ -752,9 +777,6 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   stage: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
     position: 'relative'
   },
   hiddenMeasureContainer: {
@@ -767,16 +789,15 @@ const styles = StyleSheet.create({
     fontWeight: '400'
   },
   deckContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  squareBase: {
     position: 'absolute'
   },
-  blockWrapper: {
+  squareBase: {
     position: 'absolute',
+    left: 0,
     bottom: 0
+  },
+  blockWrapper: {
+    position: 'absolute'
   },
   tabBase: {
     position: 'absolute',
@@ -793,8 +814,7 @@ const styles = StyleSheet.create({
     textAlign: 'center'
   },
   shimmerBar: {
-    position: 'absolute',
-    top: -30
+    position: 'absolute'
   },
   skipPromptContainer: {
     position: 'absolute',

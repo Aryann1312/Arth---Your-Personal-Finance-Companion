@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Gold & Loan Calculator",
-    "slug": "gold-loan-calculator",
+    "name": "Arth",
+    "slug": "arth",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icon.png",

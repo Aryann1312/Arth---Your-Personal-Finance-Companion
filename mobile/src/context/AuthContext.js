@@ -30,13 +30,7 @@ export function AuthProvider({ children }) {
         console.log('[Auth] Session restore skipped/expired:', err.message);
         await TokenManager.clearTokens();
       } finally {
-        const elapsed = Date.now() - startTimestamp;
-        const minSplashDuration = 1800; // 1.8s for smooth luxury brand presentation
-        if (elapsed < minSplashDuration) {
-          setTimeout(() => setIsLoading(false), minSplashDuration - elapsed);
-        } else {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
       }
     }
 

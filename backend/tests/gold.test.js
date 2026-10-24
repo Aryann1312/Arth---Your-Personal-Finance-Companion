@@ -33,17 +33,11 @@ describe('Gold Data API & Provider Integration Tests', () => {
 
     await GoldPrice.insertMany(records);
 
-    // Initialize cache
+    // Initialize cache using genuine adapter settlement
+    const liveSettlement = await adapter.fetchLivePrice();
     await LivePriceCache.create({
       cacheKey: 'live_gold_india',
-      price24kPerGram: 7850,
-      price22kPerGram: 7190,
-      price24kPer10g: 78500,
-      price22kPer10g: 71900,
-      currency: 'INR',
-      basis: 'indicative_derived_spot',
-      sourceName: 'WGC Benchmark',
-      sourceUrl: 'https://www.gold.org',
+      ...liveSettlement,
       updatedAt: new Date(),
       isStale: false
     });
@@ -53,15 +47,20 @@ describe('Gold Data API & Provider Integration Tests', () => {
     await teardownTestDB();
   });
 
-  test('GET /api/gold/live: Returns genuine live price with 24K and 22K rates', async () => {
+  test('GET /api/gold/live: Returns genuine live price with 24K, 22K and 18K canonical rates', async () => {
     const res = await request(app).get('/api/gold/live');
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.price24kPerGram).toBeGreaterThan(0);
     expect(res.body.data.price22kPerGram).toBeGreaterThan(0);
+    expect(res.body.data.price18kPerGram).toBeGreaterThan(0);
+    expect(res.body.data.inrPerGram).toBeDefined();
+    expect(res.body.data.inrPerGram['24K']).toBeGreaterThan(0);
+    expect(res.body.data.inrPerGram['22K']).toBeGreaterThan(0);
+    expect(res.body.data.inrPerGram['18K']).toBeGreaterThan(0);
     expect(res.body.data.price24kPer10g).toBe(res.body.data.price24kPerGram * 10);
-    expect(res.body.data.basis).toBe('indicative_derived_spot');
+    expect(res.body.data.basis).toBeDefined();
     expect(res.body.data.sourceName).toBeDefined();
   });
 
@@ -114,6 +113,6 @@ describe('Gold Data API & Provider Integration Tests', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.isStale).toBe(true);
-    expect(res.body.data.statusLabel).toContain('Stale Data');
+    expect(res.body.data.statusLabel).toContain('Last updated');
   });
 });

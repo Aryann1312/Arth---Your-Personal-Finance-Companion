@@ -13,6 +13,7 @@ import {
   ScrollView,
   TouchableOpacity
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PearlCard } from '../../components/PearlCard.js';
 import { GoldButton } from '../../components/GoldButton.js';
@@ -23,15 +24,13 @@ import { AppLogo } from '../../components/AppLogo.js';
 import { COLORS, RADII, SPACING, formatINR, useResponsiveLayout } from '../../theme/index.js';
 
 import { calculateEMI } from '../../lib/calc/emi.js';
-import { apiRequest } from '../../services/api.js';
+import { useGoldPrice } from '../../context/GoldPriceContext.js';
 import { logger } from '../../services/eventLogger.js';
 
 export function LandingScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const { isTablet, horizontalPadding } = useResponsiveLayout();
-
-  // Section 2: Live Gold Ticker state
-  const [livePrice, setLivePrice] = useState(null);
-  const [tickerLoading, setTickerLoading] = useState(true);
+  const { goldPrice, loading: tickerLoading } = useGoldPrice();
 
   // Section 4: Interactive Mini-Demo state
   const [demoAmount, setDemoAmount] = useState('500000');
@@ -41,22 +40,7 @@ export function LandingScreen({ navigation }) {
   // Section 7: FAQ Accordion state
   const [expandedFaq, setExpandedFaq] = useState(null);
 
-  // Fetch live gold ticker from backend on mount
   useEffect(() => {
-    async function fetchTicker() {
-      try {
-        const res = await apiRequest('/gold/live');
-        if (res && res.data) {
-          setLivePrice(res.data);
-        }
-      } catch {
-        // Fallback default
-      } finally {
-        setTickerLoading(false);
-      }
-    }
-    fetchTicker();
-
     logger.logAction({
       module: 'landing',
       action: 'view_landing_page',
@@ -74,7 +58,7 @@ export function LandingScreen({ navigation }) {
   const faqs = [
     {
       q: 'How is the India gold price derived?',
-      a: 'We convert genuine LBMA/London spot gold prices (XAU/USD) to INR using official RBI daily USD/INR reference rates. It reflects un-tariffed commodity value before Indian customs duty (~6%) and 3% domestic GST.'
+      a: 'We convert genuine LBMA/London spot gold prices (XAU/USD) to INR using official RBI daily USD/INR reference rates. It reflects indicative international commodity value before Indian Basic Customs Duty (~6% as of Union Budget July 2024) and 3% domestic GST.'
     },
     {
       q: 'How does the RBI tiered LTV rule work?',
@@ -86,13 +70,25 @@ export function LandingScreen({ navigation }) {
     },
     {
       q: 'Is my calculation history saved privately?',
-      a: 'Yes. Your calculations are tied securely to your account. You can export all your data or permanently delete your account and all stored history at any time.'
+      a: 'Calculations are tied to your account and stored in the database, where they are also visible to system administrators for audit and support purposes. You can export your data or delete your account at any time.'
     }
   ];
 
   return (
     <View style={styles.screen}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingHorizontal: horizontalPadding }]}>
+      {/* Pearl-coloured Status Bar Scrim with Safe Area Top Padding (1.5) */}
+      <View style={[styles.statusBarScrim, { height: insets.top }]} />
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingHorizontal: horizontalPadding,
+            paddingTop: insets.top + SPACING.md
+          }
+        ]}
+      >
         
         {/* ========================================================
             SECTION 1: HERO
@@ -111,7 +107,7 @@ export function LandingScreen({ navigation }) {
           </GoldGradientText>
 
           <Text style={styles.heroTagline}>
-            Transparent, audit-backed calculations for bullion rates, RBI regulatory tiered gold loans, and precision EMI amortization schedules.
+            Transparent calculations for bullion rates, RBI regulatory tiered gold loans, and precision EMI amortization schedules.
           </Text>
 
           {/* Shimmering Hero Buttons */}
@@ -137,9 +133,9 @@ export function LandingScreen({ navigation }) {
         <PearlCard goldTrim={true} style={styles.tickerCard}>
           <View style={styles.tickerHeader}>
             <View style={styles.statusDotRow}>
-              <View style={[styles.statusDot, livePrice?.isStale && styles.statusDotStale]} />
-              <Text style={[styles.statusText, livePrice?.isStale && styles.statusTextStale]}>
-                {livePrice?.statusLabel || 'Live Indicative Spot'}
+              <View style={[styles.statusDot, (!goldPrice?.isLive) && styles.statusDotStale]} />
+              <Text style={[styles.statusText, (!goldPrice?.isLive) && styles.statusTextStale]}>
+                {goldPrice?.isLive ? 'LIVE' : (goldPrice?.statusLabel || 'Last updated IST')}
               </Text>
             </View>
             <Text style={styles.tickerCurrency}>India (INR / gram)</Text>
@@ -147,23 +143,36 @@ export function LandingScreen({ navigation }) {
 
           <View style={styles.tickerRatesRow}>
             <View style={styles.rateCol}>
-              <Text style={styles.ratePurityLabel}>24K Fine Gold</Text>
-              <Text style={styles.rateNumber}>{formatINR(livePrice?.price24kPerGram || 7850)}</Text>
-              <Text style={styles.rateTenGram}>₹ {formatINR(livePrice?.price24kPer10g || 78500, false)} / 10g</Text>
+              <Text style={styles.ratePurityLabel}>24K Fine Gold (99.9%)</Text>
+              <Text style={styles.rateNumber}>
+                {goldPrice?.inrPerGram?.['24K'] ? formatINR(goldPrice.inrPerGram['24K']) : 'Unavailable'}
+              </Text>
+              <Text style={styles.rateTenGram}>
+                {goldPrice?.inrPer10g?.['24K'] ? `${formatINR(goldPrice.inrPer10g['24K'])} / 10g` : 'Rate unavailable'}
+              </Text>
             </View>
 
             <View style={styles.tickerDivider} />
 
             <View style={styles.rateCol}>
-              <Text style={styles.ratePurityLabel}>22K Hallmark</Text>
-              <Text style={styles.rateNumber}>{formatINR(livePrice?.price22kPerGram || 7190)}</Text>
-              <Text style={styles.rateTenGram}>₹ {formatINR(livePrice?.price22kPer10g || 71900, false)} / 10g</Text>
+              <Text style={styles.ratePurityLabel}>22K Standard Hallmark (91.6%)</Text>
+              <Text style={styles.rateNumber}>
+                {goldPrice?.inrPerGram?.['22K'] ? formatINR(goldPrice.inrPerGram['22K']) : 'Unavailable'}
+              </Text>
+              <Text style={styles.rateTenGram}>
+                {goldPrice?.inrPer10g?.['22K'] ? `${formatINR(goldPrice.inrPer10g['22K'])} / 10g` : 'Rate unavailable'}
+              </Text>
             </View>
           </View>
 
-          <Text style={styles.tickerDisclaimer}>
-            Source: {livePrice?.sourceName || 'LBMA / WGC Benchmark'} • Indicative spot converted to INR (Ex-Duty & Ex-GST)
-          </Text>
+          <View style={styles.tickerBasisContainer}>
+            <Text style={styles.tickerBasisLabel}>
+              Basis: {goldPrice?.basisLabel || 'Indicative benchmark, before duty and GST'}
+            </Text>
+            <Text style={styles.tickerDisclaimer}>
+              Source: {goldPrice?.sourceName || 'World Gold Council (Goldhub) & LBMA with RBI reference rates'} • As of: {goldPrice?.asOfIST || 'Daily Market Settlement'}
+            </Text>
+          </View>
         </PearlCard>
 
         {/* ========================================================
@@ -171,7 +180,7 @@ export function LandingScreen({ navigation }) {
             ======================================================== */}
         <View style={styles.sectionHeaderBox}>
           <Text style={styles.sectionTitle}>Engineered for Financial Accuracy</Text>
-          <Text style={styles.sectionSubtitle}>Three dedicated institutional-grade modules</Text>
+          <Text style={styles.sectionSubtitle}>Three dedicated calculation modules</Text>
         </View>
 
         <View style={[styles.featuresGrid, isTablet && styles.tabletFeaturesGrid]}>
@@ -297,7 +306,7 @@ export function LandingScreen({ navigation }) {
         <PearlCard style={styles.transparencyCard}>
           <Text style={styles.transparencyTitle}>Commitment to Data Honesty</Text>
           <Text style={styles.transparencyBody}>
-            We never fabricate prices, user statistics, or approval guarantees. Gold prices are traceable to World Gold Council and LBMA benchmarks. International spot converted to INR is clearly distinguished from local jewellery retail rates that include 6% Basic Customs Duty and 3% domestic GST.
+            We never fabricate prices, user statistics, or approval guarantees. Gold prices are derived from World Gold Council (Goldhub) & LBMA datasets converted via official RBI reference exchange rates. Indicative international benchmark prices (before duty and GST) are clearly distinguished from local jewellery retail rates that include 6% Basic Customs Duty (as of Union Budget July 2024) and 3% domestic GST.
           </Text>
         </PearlCard>
 
@@ -338,7 +347,7 @@ export function LandingScreen({ navigation }) {
           end={{ x: 1, y: 0 }}
           style={styles.ctaBanner}
         >
-          <Text style={styles.ctaBannerTitle}>Ready for Institutional Precision?</Text>
+          <Text style={styles.ctaBannerTitle}>Ready for Financial Clarity?</Text>
           <Text style={styles.ctaBannerSub}>
             Sign up now to save calculations, track 5-year gold trends, and generate custom amortization schedules.
           </Text>
@@ -373,6 +382,14 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background
+  },
+  statusBarScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 999,
+    backgroundColor: '#FAF8F5'
   },
   scrollContent: {
     paddingVertical: SPACING.xxl
@@ -501,13 +518,21 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.borderLight,
     marginHorizontal: SPACING.md
   },
-  tickerDisclaimer: {
-    fontSize: 10,
-    color: COLORS.textMuted,
+  tickerBasisContainer: {
     borderTopWidth: 1,
     borderTopColor: COLORS.borderLight,
     paddingTop: SPACING.xs,
     marginTop: SPACING.md
+  },
+  tickerBasisLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.goldDeep,
+    marginBottom: 2
+  },
+  tickerDisclaimer: {
+    fontSize: 10,
+    color: COLORS.textMuted
   },
   sectionHeaderBox: {
     alignItems: 'center',

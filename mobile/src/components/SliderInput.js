@@ -7,7 +7,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Input } from './Input.js';
-import { COLORS, RADII, SPACING } from '../theme/index.js';
+import { COLORS, RADII, SPACING, formatCompactINR, formatINR } from '../theme/index.js';
 
 export function SliderInput({
   label,
@@ -34,10 +34,17 @@ export function SliderInput({
     onValueChange(String(next));
   };
 
+  const isCurrency = prefix === '₹';
+
   return (
     <View style={[styles.container, style]}>
       <View style={styles.headerRow}>
-        <Text style={styles.label}>{label}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={styles.label}>{label}</Text>
+          {isCurrency && numericVal > 0 && (
+            <Text style={styles.groupedHint}>({formatINR(numericVal, true)})</Text>
+          )}
+        </View>
         <View style={styles.stepperContainer}>
           <TouchableOpacity
             onPress={() => handleStep('dec')}
@@ -69,6 +76,7 @@ export function SliderInput({
         <View style={styles.quickOptionsRow}>
           {quickOptions.map((opt, idx) => {
             const isSelected = Number(opt) === numericVal;
+            const chipLabel = isCurrency ? formatCompactINR(opt) : `${opt} ${suffix || ''}`.trim();
             return (
               <TouchableOpacity
                 key={idx}
@@ -76,7 +84,7 @@ export function SliderInput({
                 style={[styles.quickPill, isSelected && styles.quickPillSelected]}
               >
                 <Text style={[styles.quickPillText, isSelected && styles.quickPillTextSelected]}>
-                  {opt} {suffix}
+                  {chipLabel}
                 </Text>
               </TouchableOpacity>
             );
@@ -101,6 +109,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: COLORS.textSecondary
+  },
+  groupedHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.goldDeep
   },
   stepperContainer: {
     flexDirection: 'row',

@@ -28,20 +28,26 @@ import { COLORS, RADII, SPACING, formatINR } from '../../theme/index.js';
 import { calculateGoldLoan } from '../../lib/calc/goldLoan.js';
 import { ILLUSTRATIVE_LENDER_PRESETS } from '../../lib/calc/config.js';
 import { apiRequest } from '../../services/api.js';
+import { useGoldPrice } from '../../context/GoldPriceContext.js';
 import { logger } from '../../services/eventLogger.js';
 
 export function GoldLoanScreen({ navigation }) {
+  const { goldPrice, getRateForPurity } = useGoldPrice();
+
   // Inputs
   const [weight, setWeight] = useState('50');
   const [purity, setPurity] = useState('22K'); // '24K' | '22K' | '18K'
-  const [goldRatePerGram, setGoldRatePerGram] = useState('7850');
   const [isManualRate, setIsManualRate] = useState(false);
+  const [manualRate, setManualRate] = useState('');
   const [collateralType, setCollateralType] = useState('ornament'); // 'ornament' | 'coin'
   const [requestedLoanAmount, setRequestedLoanAmount] = useState('');
   const [repaymentMethod, setRepaymentMethod] = useState('bullet'); // 'bullet' | 'emi' | 'maturity'
-  const [annualRate, setAnnualRate] = useState('10.5');
-  const [tenureMonths, setTenureMonths] = useState('12');
-  const [selectedLenderId, setSelectedLenderId] = useState('psu-bank-standard');
+
+  // Selected lender preset (default: PSU Bank Standard 8.75%)
+  const defaultPreset = ILLUSTRATIVE_LENDER_PRESETS[0];
+  const [selectedLenderId, setSelectedLenderId] = useState(defaultPreset.id);
+  const [annualRate, setAnnualRate] = useState(String(defaultPreset.defaultAnnualRate));
+  const [tenureMonths, setTenureMonths] = useState(String(defaultPreset.defaultTenureMonths));
 
   // UI state
   const [saveModalVisible, setSaveModalVisible] = useState(false);
@@ -49,29 +55,31 @@ export function GoldLoanScreen({ navigation }) {
   const [toastMessage, setToastMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Fetch live rate on mount
-  useEffect(() => {
-    async function fetchLiveRate() {
-      try {
-        const res = await apiRequest('/gold/live');
-        if (res && res.data && res.data.price24kPerGram) {
-          if (!isManualRate) {
-            setGoldRatePerGram(String(res.data.price24kPerGram));
-          }
-        }
-      } catch {
-        // Fallback to default benchmark
-      }
-    }
-    fetchLiveRate();
-  }, []);
-
-  // Selected lender preset
+  // Selected lender preset reference
   const selectedLender = useMemo(() => {
-    return ILLUSTRATIVE_LENDER_PRESETS.find(p => p.id === selectedLenderId) || ILLUSTRATIVE_LENDER_PRESETS[0];
-  }, [selectedLenderId]);
+    return ILLUSTRATIVE_LENDER_PRESETS.find(p => p.id === selectedLenderId) || defaultPreset;
+  }, [selectedLenderId, defaultPreset]);
 
-  // When lender changes, update default rate & tenure
+  // Derived benchmark rate for selected purity from canonical store
+  const benchmarkRateForSelectedPurity = useMemo(() => {
+    return getRateForPurity(purity) || 0;
+  }, [getRateForPurity, purity]);
+
+  // Effective rate used for selected purity
+  const effectiveRate = isManualRate && manualRate ? Number(manualRate) : benchmarkRateForSelectedPurity;
+
+  // Switching purity clears manual override and displays notice (Requirement 2.5)
+  const handlePurityChange = (newPurity) => {
+    setPurity(newPurity);
+    if (isManualRate) {
+      setIsManualRate(false);
+      setManualRate('');
+      const newBenchmark = getRateForPurity(newPurity);
+      setToastMessage(`Purity changed to ${newPurity}. Benchmark rate updated to ${formatINR(newBenchmark)}/g. Manual override cleared.`);
+    }
+  };
+
+  // When lender changes, update default rate & tenure from preset
   const handleSelectLender = (preset) => {
     try {
       Haptics.selectionAsync();
@@ -83,22 +91,24 @@ export function GoldLoanScreen({ navigation }) {
     setTenureMonths(String(preset.defaultTenureMonths));
   };
 
-  // Instant Calculation
+  // Instant Calculation (Purity applied once on effectiveRate for selected purity)
   const result = useMemo(() => {
     return calculateGoldLoan({
       weight: Number(weight) || 0,
       purity,
-      goldRatePerGram: Number(goldRatePerGram) || 0,
+      goldRatePerGram: effectiveRate,
+      ratePerGramSelectedPurity: effectiveRate,
+      isRateForSelectedPurity: true,
       requestedLoanAmount: requestedLoanAmount ? Number(requestedLoanAmount) : undefined,
-      annualRate: Number(annualRate) || 0,
-      tenureMonths: Number(tenureMonths) || 12,
+      annualRate: Number(annualRate) || selectedLender.defaultAnnualRate,
+      tenureMonths: Number(tenureMonths) || selectedLender.defaultTenureMonths,
       repaymentMethod,
       collateralType,
       processingFee: selectedLender.processingFeePercent,
       feeType: selectedLender.feeType,
       lenderPreset: selectedLender
     });
-  }, [weight, purity, goldRatePerGram, requestedLoanAmount, annualRate, tenureMonths, repaymentMethod, collateralType, selectedLender]);
+  }, [weight, purity, effectiveRate, requestedLoanAmount, annualRate, tenureMonths, repaymentMethod, collateralType, selectedLender]);
 
   // Log calculation debounced
   useEffect(() => {
@@ -109,7 +119,8 @@ export function GoldLoanScreen({ navigation }) {
       inputs: {
         weight: Number(weight),
         purity,
-        goldRatePerGram: Number(goldRatePerGram),
+        goldRatePerGram: effectiveRate,
+        annualRate: Number(annualRate),
         repaymentMethod,
         collateralType,
         selectedLender: selectedLender.name
@@ -117,12 +128,12 @@ export function GoldLoanScreen({ navigation }) {
       resultSummary: {
         assessedValue: result.valuation.assessedGoldValue,
         maxEligibleLoan: result.loan.maxEligibleLoan,
-        approvedLoan: result.loan.approvedLoanAmount,
+        approvedLoanAmount: result.loan.approvedLoanAmount,
         periodicPayment: result.loan.periodicPayment,
         appliedTier: result.ltv.appliedTier
       }
     });
-  }, [weight, purity, goldRatePerGram, requestedLoanAmount, repaymentMethod, collateralType, selectedLenderId]);
+  }, [weight, purity, effectiveRate, requestedLoanAmount, annualRate, repaymentMethod, collateralType, selectedLenderId]);
 
   // Save calculation
   const handleSave = async () => {
@@ -214,7 +225,7 @@ export function GoldLoanScreen({ navigation }) {
           quickOptions={collateralType === 'coin' ? ['5', '10', '20', '50'] : ['20', '50', '100', '250']}
         />
 
-        {/* Purity Segmented Control */}
+        {/* Purity Segmented Control (2.5) */}
         <Text style={styles.inputLabel}>Gold Purity Hallmark</Text>
         <View style={styles.purityRow}>
           {['24K', '22K', '18K'].map((p) => {
@@ -222,39 +233,53 @@ export function GoldLoanScreen({ navigation }) {
             return (
               <TouchableOpacity
                 key={p}
-                onPress={() => setPurity(p)}
+                onPress={() => handlePurityChange(p)}
                 style={[styles.purityBtn, isSelected && styles.purityBtnActive]}
               >
                 <Text style={[styles.purityBtnTitle, isSelected && styles.purityBtnTitleActive]}>{p}</Text>
                 <Text style={[styles.purityBtnSub, isSelected && styles.purityBtnSubActive]}>
-                  {p === '24K' ? '99.9%' : p === '22K' ? '91.6%' : '75.0%'}
+                  {p === '24K' ? '100% (Pure)' : p === '22K' ? '91.6% Hallmark' : '75.0% Hallmark'}
                 </Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* 24K Gold Rate Reference & Manual Override Toggle */}
+        {/* Purity-Aware Gold Benchmark Rate & Manual Override Toggle (2.5) */}
         <View style={styles.rateHeaderRow}>
-          <Text style={styles.inputLabel}>24K Gold Benchmark Rate</Text>
-          <TouchableOpacity onPress={() => setIsManualRate(!isManualRate)}>
+          <Text style={styles.inputLabel}>{purity} Gold Benchmark Rate</Text>
+          <TouchableOpacity onPress={() => {
+            if (isManualRate) {
+              setIsManualRate(false);
+              setManualRate('');
+            } else {
+              setIsManualRate(true);
+              setManualRate(String(effectiveRate || ''));
+            }
+          }}>
             <Text style={styles.overrideToggleText}>
-              {isManualRate ? 'Auto Live Rate' : 'Manual Override'}
+              {isManualRate ? 'Auto Benchmark Rate' : 'Manual Override'}
             </Text>
           </TouchableOpacity>
         </View>
         <Input
-          value={goldRatePerGram}
-          onChangeText={setGoldRatePerGram}
+          value={isManualRate ? manualRate : (effectiveRate ? String(effectiveRate) : '')}
+          onChangeText={(txt) => {
+            setIsManualRate(true);
+            setManualRate(txt);
+          }}
           keyboardType="numeric"
           prefix="₹"
           suffix="/ gram"
           editable={isManualRate}
-          style={{ marginBottom: SPACING.md }}
+          style={{ marginBottom: 4 }}
         />
+        <Text style={styles.rateNoticeText}>
+          Rate applied for {purity}: {formatINR(effectiveRate)} / gram ({goldPrice?.basisLabel || 'Indicative benchmark, before duty and GST'})
+        </Text>
 
         {/* Pure Gold Equivalent Badge */}
-        <View style={styles.pureWeightBadge}>
+        <View style={[styles.pureWeightBadge, { marginTop: SPACING.md }]}>
           <Text style={styles.pureWeightLabel}>Pure Gold Equivalent (24K fine):</Text>
           <Text style={styles.pureWeightValue}>{result.collateral.pureGoldEquivalentWeightGrams} g</Text>
         </View>
@@ -293,10 +318,10 @@ export function GoldLoanScreen({ navigation }) {
         />
       </PearlCard>
 
-      {/* Illustrative Lender Comparison Cards */}
+      {/* Illustrative Lender Comparison Cards (2.1) */}
       <View style={styles.lenderSection}>
         <Text style={styles.sectionHeaderTitle}>Compare Lender Assumptions</Text>
-        <Text style={styles.sectionSubtitle}>Select an illustrative preset (not official loan offers):</Text>
+        <Text style={styles.sectionSubtitle}>Select an illustrative preset (drives interest rate & tenure):</Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.lendersScroll}>
           {ILLUSTRATIVE_LENDER_PRESETS.map((preset) => {
@@ -325,6 +350,20 @@ export function GoldLoanScreen({ navigation }) {
             );
           })}
         </ScrollView>
+
+        {/* Editable Custom Annual Interest Rate (2.1) */}
+        <View style={styles.customRateBox}>
+          <SliderInput
+            label="Annual Interest Rate (% p.a.)"
+            value={annualRate}
+            onValueChange={setAnnualRate}
+            min={5.0}
+            max={24.0}
+            step={0.25}
+            suffix="%"
+            quickOptions={['8.75', '9.50', '10.50', '12.00']}
+          />
+        </View>
       </View>
     </View>
   );
@@ -355,11 +394,19 @@ export function GoldLoanScreen({ navigation }) {
           <Text style={styles.tierDescription}>{result.ltv.appliedTier}</Text>
         </View>
 
-        {/* Separate Loan Eligible Amount */}
+        {/* Requested Amount in Results (2.2) */}
+        <View style={styles.requestedAmountBox}>
+          <Text style={styles.requestedAmountLabel}>Requested Loan Amount</Text>
+          <Text style={styles.requestedAmountValue}>
+            {result.loan.requestedLoanAmount ? formatINR(result.loan.requestedLoanAmount) : 'Not specified (Max Eligible)'}
+          </Text>
+        </View>
+
+        {/* Separate Maximum Eligible Loan Limit (2.3) */}
         <View style={styles.loanApprovalBox}>
           <Text style={styles.loanApprovalLabel}>Maximum Eligible Loan Approval</Text>
           <AnimatedNumber
-            value={result.loan.approvedLoanAmount}
+            value={result.loan.maxEligibleLoan}
             isCurrency={true}
             style={styles.loanApprovalAmount}
           />
@@ -368,8 +415,38 @@ export function GoldLoanScreen({ navigation }) {
           </Text>
         </View>
 
+        {/* Eligibility Shortfall Warning (2.3) */}
+        {result.loan.hasShortfall ? (
+          <View style={styles.shortfallCard}>
+            <Text style={styles.shortfallTitle}>⚠️ Loan Eligibility Shortfall</Text>
+            <Text style={styles.shortfallBody}>{result.loan.shortfallWarning}</Text>
+            <View style={styles.shortfallBadgeRow}>
+              <Text style={styles.shortfallBasisBadge}>{result.loan.calculationBasis}</Text>
+              <Text style={styles.shortfallAmountText}>
+                Shortfall: {formatINR(result.loan.shortfallAmount)}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.basisNoticeBox}>
+            <Text style={styles.basisNoticeText}>ℹ️ {result.loan.calculationBasis}</Text>
+          </View>
+        )}
+
         {/* Repayment Breakdown */}
         <View style={styles.repaymentSummaryBox}>
+          {/* Prominently Show Rate Used (2.1) */}
+          <View style={[styles.summaryRow, styles.rateUsedRow]}>
+            <Text style={styles.rateUsedLabel}>Rate used:</Text>
+            <Text style={styles.rateUsedValue}>{result.loan.annualRate}% p.a.</Text>
+          </View>
+
+          {/* Rate used for selected purity (2.5) */}
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Rate used for {purity}:</Text>
+            <Text style={styles.summaryValue}>{formatINR(result.valuation.ratePerGramSelectedPurity)} / g</Text>
+          </View>
+
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>
               {repaymentMethod === 'emi' ? 'Monthly EMI' : repaymentMethod === 'bullet' ? 'Monthly Interest' : 'Periodic Payment'}
@@ -824,6 +901,100 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     marginTop: SPACING.sm,
     textAlign: 'center'
+  },
+  rateNoticeText: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    fontStyle: 'italic',
+    marginBottom: SPACING.xs
+  },
+  customRateBox: {
+    marginTop: SPACING.md
+  },
+  requestedAmountBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+    marginBottom: SPACING.sm
+  },
+  requestedAmountLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textSecondary
+  },
+  requestedAmountValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.textPrimary
+  },
+  shortfallCard: {
+    backgroundColor: '#FEF2F2',
+    padding: SPACING.md,
+    borderRadius: RADII.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.error,
+    marginBottom: SPACING.md
+  },
+  shortfallTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.error,
+    marginBottom: 4
+  },
+  shortfallBody: {
+    fontSize: 11,
+    color: '#991B1B',
+    lineHeight: 16,
+    marginBottom: 6
+  },
+  shortfallBadgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  shortfallBasisBadge: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.error,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4
+  },
+  shortfallAmountText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.error
+  },
+  basisNoticeBox: {
+    backgroundColor: COLORS.surfaceMuted,
+    padding: SPACING.sm,
+    borderRadius: RADII.sm,
+    marginBottom: SPACING.md
+  },
+  basisNoticeText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontWeight: '600'
+  },
+  rateUsedRow: {
+    backgroundColor: COLORS.goldLightBg,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: RADII.sm,
+    marginBottom: 6
+  },
+  rateUsedLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.goldDeep
+  },
+  rateUsedValue: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: COLORS.goldDeep
   },
   saveModalOverlay: {
     flex: 1,

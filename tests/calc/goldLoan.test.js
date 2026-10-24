@@ -14,7 +14,7 @@ import { ILLUSTRATIVE_LENDER_PRESETS } from '../../lib/calc/config.js';
 
 describe('Gold Loan Engine & Tiered Regulatory LTV', () => {
   test('Purity resolution and conversion factor precision', () => {
-    expect(resolvePurity('24K').factor).toBe(0.999);
+    expect(resolvePurity('24K').factor).toBe(1.0);
     expect(resolvePurity('22K').factor).toBe(0.916);
     expect(resolvePurity('18K').factor).toBe(0.750);
     expect(resolvePurity(22).karat).toBe(22);
@@ -158,6 +158,102 @@ describe('Gold Loan Engine & Tiered Regulatory LTV', () => {
         expect(preset.verifiedOn).toBeDefined();
         expect(preset.maxLtvPercent).toBeLessThanOrEqual(75);
       }
+    });
+
+    test('Every lender preset drives the calculation rate, EMI, interest, and total repayment', () => {
+      for (const preset of ILLUSTRATIVE_LENDER_PRESETS) {
+        const res = calculateGoldLoan({
+          weight: 50,
+          purity: '22K',
+          goldRatePerGram: 11600,
+          lenderPreset: preset,
+          repaymentMethod: 'emi',
+          tenureMonths: preset.defaultTenureMonths
+        });
+
+        expect(res.loan.annualRate).toBe(preset.defaultAnnualRate);
+        expect(res.loan.periodicPayment).toBeGreaterThan(0);
+        expect(res.loan.totalInterest).toBeGreaterThan(0);
+        expect(res.loan.totalRepayment).toBeCloseTo(res.loan.approvedLoanAmount + res.loan.totalInterest, -1);
+      }
+    });
+  });
+
+  describe('Eligibility Shortfall & Calculation Basis', () => {
+    test('When requested amount exceeds eligible limit, flags shortfall and calculates on eligible amount by default', () => {
+      const res = calculateGoldLoan({
+        weight: 20,
+        purity: '22K',
+        goldRatePerGram: 10000,
+        requestedLoanAmount: 500000, // Eligible is ~1.55L (20 * 0.916 * 10000 = 183200 * 0.85 = 155720)
+        annualRate: 8.75,
+        tenureMonths: 12
+      });
+
+      expect(res.loan.hasShortfall).toBe(true);
+      expect(res.loan.shortfallAmount).toBeGreaterThan(0);
+      expect(res.loan.shortfallAmount).toBeCloseTo(500000 - res.loan.maxEligibleLoan, 1);
+      expect(res.loan.calculationBasis).toBe('Calculated on eligible amount');
+      expect(res.loan.approvedLoanAmount).toBe(res.loan.maxEligibleLoan);
+      expect(res.loan.shortfallWarning).toBeDefined();
+      expect(res.loan.shortfallWarning).toContain('exceeds');
+    });
+
+    test('When requested amount is within eligible limit, calculates on requested amount with no shortfall', () => {
+      const res = calculateGoldLoan({
+        weight: 50,
+        purity: '22K',
+        goldRatePerGram: 10000,
+        requestedLoanAmount: 200000,
+        annualRate: 8.75,
+        tenureMonths: 12
+      });
+
+      expect(res.loan.hasShortfall).toBe(false);
+      expect(res.loan.shortfallAmount).toBe(0);
+      expect(res.loan.calculationBasis).toBe('Calculated on requested amount');
+      expect(res.loan.approvedLoanAmount).toBe(200000);
+      expect(res.loan.shortfallWarning).toBeNull();
+    });
+  });
+
+  describe('Benchmark Rate & Purity Value Ratios', () => {
+    test('Purity value ratios for identical weight must exactly satisfy 18K : 22K : 24K = 0.75 : 0.916 : 1.0', () => {
+      const rate24K = 12000;
+      const weight = 50;
+
+      const res24K = calculateGoldLoan({ weight, purity: '24K', goldRatePerGram: rate24K });
+      const res22K = calculateGoldLoan({ weight, purity: '22K', goldRatePerGram: rate24K });
+      const res18K = calculateGoldLoan({ weight, purity: '18K', goldRatePerGram: rate24K });
+
+      const val24K = res24K.valuation.assessedGoldValue;
+      const val22K = res22K.valuation.assessedGoldValue;
+      const val18K = res18K.valuation.assessedGoldValue;
+
+      // 50 * 12000 = 600000
+      expect(val24K).toBe(600000);
+      // 50 * 12000 * 0.916 = 549600
+      expect(val22K).toBe(549600);
+      // 50 * 12000 * 0.75 = 450000
+      expect(val18K).toBe(450000);
+
+      // Check exact ratios
+      expect(val18K / val24K).toBeCloseTo(0.75 / 1.0, 4);
+      expect(val22K / val24K).toBeCloseTo(0.916 / 1.0, 4);
+    });
+
+    test('Selected purity benchmark rate applies purity exactly once', () => {
+      const rate22K = 11000;
+      const res = calculateGoldLoan({
+        weight: 10,
+        purity: '22K',
+        ratePerGramSelectedPurity: rate22K,
+        isRateForSelectedPurity: true
+      });
+
+      // 10g at 11000/g for 22K = exactly 110000
+      expect(res.valuation.assessedGoldValue).toBe(110000);
+      expect(res.valuation.ratePerGramSelectedPurity).toBe(11000);
     });
   });
 });

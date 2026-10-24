@@ -12,7 +12,6 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import { useAuth } from '../context/AuthContext.js';
 import { COLORS, RADII } from '../theme/index.js';
-import { LuxurySplash } from '../components/LuxurySplash.js';
 import { IntroScreen } from '../screens/intro/IntroScreen.js';
 
 // Screens
@@ -179,16 +178,18 @@ function MainTabs() {
 }
 
 export function AppNavigator() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [hasShownIntro, setHasShownIntro] = useState(false);
 
-  // Play cold-start "Arth" opening animation
+  // Cold-start 'Arth' Opening Animation is the very first screen
   if (!hasShownIntro) {
-    return <IntroScreen onIntroComplete={() => setHasShownIntro(true)} />;
-  }
-
-  if (isLoading) {
-    return <LuxurySplash />;
+    return (
+      <IntroScreen
+        onIntroComplete={() => {
+          setHasShownIntro(true);
+        }}
+      />
+    );
   }
 
   return (
@@ -248,6 +249,10 @@ export function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
+  rootContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background
+  },
   tabBar: {
     backgroundColor: COLORS.surface,
     borderTopWidth: 1,

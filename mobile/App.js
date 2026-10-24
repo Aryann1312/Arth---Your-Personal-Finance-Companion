@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext.js';
 import { SettingsProvider } from './src/context/SettingsContext.js';
+import { GoldPriceProvider } from './src/context/GoldPriceContext.js';
 import { AppNavigator } from './src/navigation/AppNavigator.js';
 
 export default function App() {
@@ -16,8 +17,10 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <SettingsProvider>
-          <StatusBar style="dark" backgroundColor="#FAF8F5" />
-          <AppNavigator />
+          <GoldPriceProvider>
+            <StatusBar style="dark" backgroundColor="#FAF8F5" />
+            <AppNavigator />
+          </GoldPriceProvider>
         </SettingsProvider>
       </AuthProvider>
     </SafeAreaProvider>

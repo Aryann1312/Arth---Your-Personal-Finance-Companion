@@ -50,12 +50,12 @@ export function AnimatedNumber({
   }, [value, reduceMotion, duration]);
 
   const formatted = isCurrency
-    ? formatINR(displayValue, false)
+    ? (prefix ? formatINR(displayValue, false) : formatINR(displayValue, true))
     : Math.round(displayValue).toString();
 
   return (
     <Text style={[styles.text, style]}>
-      {prefix}
+      {prefix ? prefix : ''}
       {formatted}
       {suffix}
     </Text>

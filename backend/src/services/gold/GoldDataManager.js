@@ -25,12 +25,18 @@ export class GoldDataManager {
     // 1. Check MongoDB cache first
     try {
       const cached = await LivePriceCache.findOne({ cacheKey: 'live_gold_india' }).lean();
-      if (cached && (Date.now() - new Date(cached.updatedAt).getTime()) < this.cacheTtlMs) {
-        return {
-          ...cached,
-          isStale: false,
-          isCached: true
-        };
+      if (cached) {
+        const age = Date.now() - new Date(cached.updatedAt).getTime();
+        const isFresh = age < this.cacheTtlMs;
+        if (isFresh) {
+          return {
+            ...cached,
+            isLive: true,
+            isStale: false,
+            statusLabel: 'LIVE',
+            isCached: true
+          };
+        }
       }
     } catch (cacheReadErr) {
       console.warn('[GoldDataManager] Cache read error:', cacheReadErr.message);
@@ -63,14 +69,26 @@ export class GoldDataManager {
           cacheKey: 'live_gold_india',
           price24kPerGram: freshData.price24kPerGram,
           price22kPerGram: freshData.price22kPerGram,
+          price18kPerGram: freshData.price18kPerGram,
           price24kPer10g: freshData.price24kPer10g,
           price22kPer10g: freshData.price22kPer10g,
+          price18kPer10g: freshData.price18kPer10g,
+          inrPerGram: freshData.inrPerGram,
+          inrPer10g: freshData.inrPer10g,
+          retailEstimatePerGram: freshData.retailEstimatePerGram,
           currency: freshData.currency,
           basis: freshData.basis,
+          basisLabel: freshData.basisLabel,
+          retailBasisLabel: freshData.retailBasisLabel,
+          source: freshData.source || freshData.sourceName,
           sourceName: freshData.sourceName,
           sourceUrl: freshData.sourceUrl,
+          asOf: freshData.asOf || new Date(),
+          asOfIST: freshData.asOfIST,
           updatedAt: freshData.updatedAt || new Date(),
-          isStale: false
+          isLive: true,
+          isStale: false,
+          statusLabel: 'LIVE'
         },
         { upsert: true, new: true }
       );
@@ -85,13 +103,15 @@ export class GoldDataManager {
 
       return {
         ...freshData,
+        isLive: true,
         isStale: false,
+        statusLabel: 'LIVE',
         isCached: false
       };
     } catch (fetchErr) {
       console.error('[GoldDataManager Error] Live fetch failed:', fetchErr.message);
 
-      // 3. Fallback to last known stored value in cache or GoldPrice collection
+      // 3. Fallback to last known stored value in cache
       FetchLog.create({
         provider: providerUsed,
         status: 'fallback',
@@ -100,27 +120,39 @@ export class GoldDataManager {
 
       const fallbackCache = await LivePriceCache.findOne({ cacheKey: 'live_gold_india' }).lean();
       if (fallbackCache) {
+        const formattedIST = fallbackCache.asOfIST || new Date(fallbackCache.updatedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) + ' IST';
         return {
           ...fallbackCache,
+          isLive: false,
           isStale: true,
-          statusLabel: 'Stale Data (Offline Fallback - Showing last verified market price)',
-          staleWarning: `Live market feed temporarily unavailable. Displaying last verified settlement from ${new Date(fallbackCache.updatedAt).toLocaleDateString('en-IN')}.`
+          statusLabel: `Last updated ${formattedIST}`,
+          staleWarning: `Live market feed temporarily unavailable. Displaying last verified settlement from ${formattedIST}.`
         };
       }
 
-      // Final safety fallback
+      // Honest unavailable state - NEVER FABRICATE DATA
       return {
-        price24kPerGram: 7850,
-        price22kPerGram: 7190,
-        price24kPer10g: 78500,
-        price22kPer10g: 71900,
+        isAvailable: false,
+        price24kPerGram: null,
+        price22kPerGram: null,
+        price18kPerGram: null,
+        price24kPer10g: null,
+        price22kPer10g: null,
+        price18kPer10g: null,
+        inrPerGram: null,
+        inrPer10g: null,
+        retailEstimatePerGram: null,
         currency: 'INR',
-        basis: 'indicative_derived_spot',
-        sourceName: 'WGC Benchmark Fallback',
+        basis: 'indicative_benchmark_ex_duty_gst',
+        basisLabel: 'Indicative benchmark, before duty and GST',
+        sourceName: 'Market Data Feed',
         sourceUrl: 'https://www.gold.org/goldhub/data/gold-prices',
-        updatedAt: new Date(),
+        asOf: null,
+        asOfIST: null,
+        updatedAt: null,
+        isLive: false,
         isStale: true,
-        statusLabel: 'Default Benchmark Reference'
+        statusLabel: 'Market Data Unavailable'
       };
     }
   }

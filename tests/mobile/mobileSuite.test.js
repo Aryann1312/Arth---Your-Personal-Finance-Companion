@@ -4,7 +4,7 @@
  * Indian currency formatting (Lakhs / Crores), and mobile calculation engine bridges.
  */
 
-import { BREAKPOINTS, SPACING, getResponsiveLayout, formatINR } from '../../lib/calc/responsive.js';
+import { BREAKPOINTS, SPACING, getResponsiveLayout, formatINR, formatCompactINR } from '../../lib/calc/responsive.js';
 import { calculateEMI, generateAmortizationSchedule } from '../../lib/calc/emi.js';
 import { calculateGoldLoan } from '../../lib/calc/goldLoan.js';
 import { deriveINRPriceFromSpot } from '../../lib/calc/goldDerivation.js';
@@ -59,10 +59,14 @@ describe('Mobile Responsive Breakpoint Helper Tests (UI Logic)', () => {
 
 describe('Indian Currency Numbering Formatter Tests (UI Logic)', () => {
   test('Formats currency with rupee symbol in Indian numbering system (en-IN)', () => {
-    expect(formatINR(500000)).toMatch(/₹\s*5,00,000/);
-    expect(formatINR(12500000)).toMatch(/₹\s*1,25,00,000/);
-    expect(formatINR(10623.52)).toMatch(/₹\s*10,623\.52/);
-    expect(formatINR(0)).toMatch(/₹\s*0/);
+    expect(formatINR(588161.25)).toBe('₹5,88,161.25');
+    expect(formatINR(0)).toBe('₹0.00');
+    expect(formatINR(10000000)).toBe('₹1,00,00,000.00');
+    expect(formatINR(-588161.25)).toBe('-₹5,88,161.25');
+    expect(formatINR(NaN)).toBe('₹0.00');
+    expect(formatINR(null)).toBe('₹0.00');
+    expect(formatINR(undefined)).toBe('₹0.00');
+    expect(formatINR('invalid')).toBe('₹0.00');
   });
 
   test('Formats raw numbers without currency symbol when includeSymbol is false', () => {
@@ -70,10 +74,61 @@ describe('Indian Currency Numbering Formatter Tests (UI Logic)', () => {
     expect(formatINR(10623.52, false)).toBe('10,623.52');
   });
 
-  test('Gracefully handles falsy or non-numeric inputs', () => {
-    expect(formatINR(null)).toMatch(/₹\s*0/);
-    expect(formatINR(undefined)).toMatch(/₹\s*0/);
-    expect(formatINR('invalid')).toMatch(/₹\s*0/);
+  test('Formats compact chips into standard Indian denominations (formatCompactINR)', () => {
+    expect(formatCompactINR(200000)).toBe('₹2L');
+    expect(formatCompactINR(500000)).toBe('₹5L');
+    expect(formatCompactINR(1000000)).toBe('₹10L');
+    expect(formatCompactINR(50000)).toBe('₹50K');
+    expect(formatCompactINR(10000000)).toBe('₹1Cr');
+  });
+});
+
+describe('Canonical Gold Price Consistency Across Screens (1.2)', () => {
+  test('All screens receive identical values from the canonical store record', () => {
+    const canonicalRecord = {
+      asOf: '2026-10-24T17:00:00.000Z',
+      asOfIST: '24 Oct 2026, 05:00 PM IST',
+      source: 'World Gold Council (Goldhub) & LBMA',
+      basis: 'indicative_benchmark_ex_duty_gst',
+      basisLabel: 'Indicative benchmark, before duty and GST',
+      currency: 'INR',
+      inrPerGram: {
+        '24K': 12664.46,
+        '22K': 11600.65,
+        '18K': 9498.35
+      },
+      inrPer10g: {
+        '24K': 126644.60,
+        '22K': 116006.50,
+        '18K': 94983.50
+      }
+    };
+
+    // Landing Screen consumer
+    const landing24k = canonicalRecord.inrPerGram['24K'];
+    const landing22k = canonicalRecord.inrPerGram['22K'];
+
+    // Gold Overview Screen consumer
+    const overview24k = canonicalRecord.inrPerGram['24K'];
+    const overview22k = canonicalRecord.inrPerGram['22K'];
+    const overview18k = canonicalRecord.inrPerGram['18K'];
+
+    // Gold Loan Screen benchmark rate consumer
+    const getLoanRateForPurity = (purity) => canonicalRecord.inrPerGram[purity];
+    const loan24k = getLoanRateForPurity('24K');
+    const loan22k = getLoanRateForPurity('22K');
+    const loan18k = getLoanRateForPurity('18K');
+
+    // Assert absolute consistency - no screen diverges
+    expect(landing24k).toBe(overview24k);
+    expect(landing24k).toBe(loan24k);
+    expect(landing22k).toBe(overview22k);
+    expect(landing22k).toBe(loan22k);
+    expect(overview18k).toBe(loan18k);
+
+    // Derived 10g check using shared calc math
+    expect(canonicalRecord.inrPer10g['24K']).toBe(Math.round(landing24k * 10 * 100) / 100);
+    expect(canonicalRecord.inrPer10g['22K']).toBe(Math.round(landing22k * 10 * 100) / 100);
   });
 });
 

@@ -30,7 +30,7 @@ describe('Gold Derivation & Domestic Retail Tariff Engine', () => {
     // 24K derivation
     const derived24K = deriveINRPriceFromSpot({ xauUsd, usdInr, purity: '24K' });
     const expectedPerGramFine = (2700 / TROY_OUNCE_TO_GRAMS) * 84;
-    const expected24K = Math.round(expectedPerGramFine * 0.999 * 100) / 100;
+    const expected24K = Math.round(expectedPerGramFine * 1.0 * 100) / 100;
 
     expect(derived24K.pricePerGram).toBeCloseTo(expected24K, 1);
     expect(derived24K.pricePer10Gram).toBeCloseTo(expected24K * 10, 1);

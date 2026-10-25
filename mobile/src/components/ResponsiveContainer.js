@@ -17,7 +17,10 @@ export function ResponsiveContainer({
   bottomContent,
   scrollable = true,
   style,
-  contentContainerStyle
+  contentContainerStyle,
+  refreshControl,
+  keyboardShouldPersistTaps = 'handled',
+  ...restProps
 }) {
   const { isTablet, horizontalPadding } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
@@ -28,7 +31,14 @@ export function ResponsiveContainer({
     if (!scrollable) {
       if (isTablet) {
         return (
-          <View style={[styles.container, { paddingHorizontal: horizontalPadding }, style]}>
+          <View
+            style={[
+              styles.container,
+              styles.tabletScrollContent,
+              { paddingHorizontal: horizontalPadding },
+              style
+            ]}
+          >
             {headerContent}
             <View style={styles.twoColumnRow}>
               <View style={styles.columnLeft}>{leftContent}</View>
@@ -45,7 +55,14 @@ export function ResponsiveContainer({
 
       // Phone single column non-scrollable
       return (
-        <View style={[styles.container, { paddingHorizontal: horizontalPadding }, style]}>
+        <View
+          style={[
+            styles.container,
+            styles.phoneScrollContent,
+            { paddingHorizontal: horizontalPadding },
+            style
+          ]}
+        >
           {headerContent}
           <View style={styles.singleColumn}>
             {leftContent}
@@ -66,6 +83,9 @@ export function ResponsiveContainer({
             contentContainerStyle
           ]}
           showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
+          keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+          {...restProps}
         >
           {headerContent}
           <View style={styles.twoColumnRow}>
@@ -91,6 +111,9 @@ export function ResponsiveContainer({
           contentContainerStyle
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
+        keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        {...restProps}
       >
         {headerContent}
         <View style={styles.singleColumn}>
@@ -113,6 +136,9 @@ export function ResponsiveContainer({
           contentContainerStyle
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
+        keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        {...restProps}
       >
         {headerContent}
         {children}
@@ -122,7 +148,14 @@ export function ResponsiveContainer({
   }
 
   return (
-    <View style={[styles.container, { paddingHorizontal: horizontalPadding }, style]}>
+    <View
+      style={[
+        styles.container,
+        isTablet ? styles.tabletScrollContent : styles.phoneScrollContent,
+        { paddingHorizontal: horizontalPadding },
+        style
+      ]}
+    >
       {headerContent}
       {children}
       {bottomContent}

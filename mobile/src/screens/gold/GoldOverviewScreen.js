@@ -9,7 +9,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   RefreshControl,
   TouchableOpacity,
   Animated,
@@ -401,20 +400,22 @@ export function GoldOverviewScreen({ navigation }) {
   );
 
   return (
-    <ScrollView
-      style={styles.screen}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.goldDeep} />}
-      keyboardShouldPersistTaps="handled"
-    >
+    <View style={styles.screen}>
       <Toast message={error} type="error" visible={Boolean(error)} />
       <ResponsiveContainer
         headerContent={renderHeader}
         leftContent={renderLeftColumn}
         rightContent={renderRightColumn}
         bottomContent={renderBottomSection}
-        scrollable={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={COLORS.goldDeep}
+          />
+        }
       />
-    </ScrollView>
+    </View>
   );
 }
 

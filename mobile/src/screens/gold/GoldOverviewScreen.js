@@ -22,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 import { PearlCard } from '../../components/PearlCard.js';
 import { MiniGoldChart } from '../../components/MiniGoldChart.js';
 import { GoldButton } from '../../components/GoldButton.js';
+import { GoldPriceCalculator } from '../../components/GoldPriceCalculator.js';
 import { Skeleton } from '../../components/Skeleton.js';
 import { Toast } from '../../components/Toast.js';
 import { ResponsiveContainer } from '../../components/ResponsiveContainer.js';
@@ -334,6 +335,9 @@ export function GoldOverviewScreen({ navigation }) {
         />
       </View>
 
+      {/* Gold Price Calculator - Placed directly above Indian Retail Estimate */}
+      <GoldPriceCalculator goldPricePerGram24K={goldPrice?.inrPerGram?.['24K']} />
+
       {/* 3. Indian Domestic Retail Estimate Collapsible Dropdown Card */}
       <PearlCard style={styles.retailCard}>
         <TouchableOpacity
@@ -391,6 +395,7 @@ export function GoldOverviewScreen({ navigation }) {
     <ScrollView
       style={styles.screen}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.goldDeep} />}
+      keyboardShouldPersistTaps="handled"
     >
       <Toast message={error} type="error" visible={Boolean(error)} />
       <ResponsiveContainer

@@ -27,6 +27,7 @@ import { DonutChart } from '../../components/DonutChart.js';
 import { AnimatedNumber } from '../../components/AnimatedNumber.js';
 import { ResponsiveContainer } from '../../components/ResponsiveContainer.js';
 import { PageTitleBanner } from '../../components/PageTitleBanner.js';
+import { HamburgerButton, SideDrawer, useSideDrawer } from '../../components/drawer/index.js';
 import { Toast } from '../../components/Toast.js';
 
 import { COLORS, RADII, SPACING, formatINR, useResponsiveLayout } from '../../theme/index.js';
@@ -36,6 +37,7 @@ import { apiRequest } from '../../services/api.js';
 import { logger } from '../../services/eventLogger.js';
 
 export function EMIScreen({ navigation }) {
+  const drawer = useSideDrawer();
   const { isTablet } = useResponsiveLayout();
 
   // Inputs
@@ -491,16 +493,25 @@ export function EMIScreen({ navigation }) {
   );
 
   const renderHeader = (
-    <PageTitleBanner
-      title="EMI CALCULATOR"
-      description={`Plan monthly installments, interest amortization,\nand total repayment clarity`}
-    />
+    <View style={styles.headerWrapper}>
+      <View style={styles.topMenuRow}>
+        <HamburgerButton
+          isOpen={drawer.isOpen}
+          animValue={drawer.animValue}
+          onPress={drawer.toggleDrawer}
+        />
+      </View>
+      <PageTitleBanner
+        title="EMI CALCULATOR"
+        description={`Plan monthly installments, interest amortization,\nand total repayment clarity`}
+      />
+    </View>
   );
 
   return (
     <View style={styles.screen}>
       <Toast message={toastMessage} visible={Boolean(toastMessage)} />
-      <ResponsiveContainer headerContent={renderHeader}>
+      <ResponsiveContainer headerContent={renderHeader} scrollable={!drawer.isOpen}>
         <View style={isTablet ? styles.tabletWrapper : styles.phoneWrapper}>
           {renderInputs}
           {renderResults}
@@ -523,6 +534,14 @@ export function EMIScreen({ navigation }) {
           </View>
         </View>
       </ResponsiveContainer>
+
+      {/* Side Navigation Drawer */}
+      <SideDrawer
+        isOpen={drawer.isOpen}
+        animValue={drawer.animValue}
+        onClose={drawer.closeDrawer}
+        navigation={navigation}
+      />
     </View>
   );
 }
@@ -531,6 +550,17 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background
+  },
+  headerWrapper: {
+    width: '100%'
+  },
+  topMenuRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: SPACING.xs,
+    paddingBottom: SPACING.xs
   },
   bottomSavedContainer: {
     width: '100%',

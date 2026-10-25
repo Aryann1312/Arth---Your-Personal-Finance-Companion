@@ -51,6 +51,7 @@ import { MyHistoryScreen } from '../screens/history/MyHistoryScreen.js';
 import { SettingsScreen } from '../screens/profile/SettingsScreen.js';
 import { PrivacyNoticeScreen } from '../screens/profile/PrivacyNoticeScreen.js';
 import { AdminPortalScreen } from '../screens/admin/AdminPortalScreen.js';
+import { AppInfoScreen } from '../screens/info/AppInfoScreen.js';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -312,6 +313,16 @@ export function AppNavigator() {
               name="SavedEMI"
               component={SavedEMIScreen}
               options={{ headerShown: true, title: 'Saved EMI Calculations', headerStyle: { backgroundColor: COLORS.surface }, headerTintColor: COLORS.textPrimary }}
+            />
+            <Stack.Screen
+              name="AppInfo"
+              component={AppInfoScreen}
+              options={({ route }) => ({
+                headerShown: true,
+                title: route.params?.title || 'Features & Clarity',
+                headerStyle: { backgroundColor: COLORS.surface },
+                headerTintColor: COLORS.textPrimary
+              })}
             />
           </>
         )}

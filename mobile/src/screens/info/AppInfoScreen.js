@@ -22,12 +22,14 @@ import {
   HowItWorksSection,
   FaqAccordionSection
 } from '../landing/LandingScreen.js';
+import { TeamCard } from '../../components/drawer/TeamCard.js';
 import { COLORS, RADII, SPACING, useResponsiveLayout } from '../../theme/index.js';
 
 const TABS = [
   { id: 'features', label: 'Features' },
   { id: 'howItWorks', label: 'How It Works' },
-  { id: 'faq', label: 'FAQ' }
+  { id: 'faq', label: 'FAQ' },
+  { id: 'team', label: 'Team' }
 ];
 
 export function AppInfoScreen({ route, navigation }) {
@@ -110,6 +112,12 @@ export function AppInfoScreen({ route, navigation }) {
         {activeTab === 'faq' && (
           <View style={styles.sectionWrap}>
             <FaqAccordionSection />
+          </View>
+        )}
+
+        {activeTab === 'team' && (
+          <View style={styles.sectionWrap}>
+            <TeamCard />
           </View>
         )}
       </ScrollView>

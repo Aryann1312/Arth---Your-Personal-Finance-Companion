@@ -34,7 +34,7 @@ import { GoldButton } from '../../components/GoldButton.js';
 import { AnimatedNumber } from '../../components/AnimatedNumber.js';
 import { ResponsiveContainer } from '../../components/ResponsiveContainer.js';
 import { PageTitleBanner } from '../../components/PageTitleBanner.js';
-import { HamburgerButton, SideDrawer, useSideDrawer } from '../../components/drawer/index.js';
+import { ExpandableMenuBar } from '../../components/drawer/index.js';
 import { Toast } from '../../components/Toast.js';
 import { COLORS, RADII, SPACING, SHADOWS, formatINR, formatCompactINR, useResponsiveLayout } from '../../theme/index.js';
 
@@ -47,7 +47,6 @@ import { useSettings } from '../../context/SettingsContext.js';
 import { logger } from '../../services/eventLogger.js';
 
 export function GoldLoanScreen({ navigation }) {
-  const drawer = useSideDrawer();
   const { goldPrice, getRateForPurity } = useGoldPrice();
   const { reduceMotion } = useSettings();
   const { isTablet } = useResponsiveLayout();
@@ -855,13 +854,7 @@ export function GoldLoanScreen({ navigation }) {
 
   const renderHeader = (
     <View style={styles.headerWrapper}>
-      <View style={styles.topMenuRow}>
-        <HamburgerButton
-          isOpen={drawer.isOpen}
-          animValue={drawer.animValue}
-          onPress={drawer.toggleDrawer}
-        />
-      </View>
+      <ExpandableMenuBar navigation={navigation} />
       <PageTitleBanner
         title="GOLD LOAN"
         description={`Evaluate maximum borrowing eligibility, regulatory\nLTV limits, and repayment terms`}
@@ -989,14 +982,6 @@ export function GoldLoanScreen({ navigation }) {
           </View>
         </Modal>
       </ResponsiveContainer>
-
-      {/* Side Navigation Drawer */}
-      <SideDrawer
-        isOpen={drawer.isOpen}
-        animValue={drawer.animValue}
-        onClose={drawer.closeDrawer}
-        navigation={navigation}
-      />
     </View>
   );
 }
@@ -1008,14 +993,6 @@ const styles = StyleSheet.create({
   },
   headerWrapper: {
     width: '100%'
-  },
-  topMenuRow: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    paddingTop: SPACING.xs,
-    paddingBottom: SPACING.xs
   },
   keyboardContainer: {
     width: '100%',

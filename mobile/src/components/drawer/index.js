@@ -4,6 +4,7 @@
  */
 
 export { HamburgerButton } from './HamburgerButton.js';
+export { ExpandableMenuBar } from './ExpandableMenuBar.js';
 export { SideDrawer } from './SideDrawer.js';
 export { DrawerItem } from './DrawerItem.js';
 export { TeamCard } from './TeamCard.js';

@@ -27,7 +27,7 @@ import { Skeleton } from '../../components/Skeleton.js';
 import { Toast } from '../../components/Toast.js';
 import { ResponsiveContainer } from '../../components/ResponsiveContainer.js';
 import { PageTitleBanner } from '../../components/PageTitleBanner.js';
-import { HamburgerButton, SideDrawer, useSideDrawer } from '../../components/drawer/index.js';
+import { ExpandableMenuBar } from '../../components/drawer/index.js';
 import { COLORS, RADII, SPACING, formatINR } from '../../theme/index.js';
 
 import { apiRequest } from '../../services/api.js';
@@ -53,7 +53,6 @@ function ChevronDownIcon({ color = COLORS.goldDeep, size = 18 }) {
 }
 
 export function GoldOverviewScreen({ navigation }) {
-  const drawer = useSideDrawer();
   const { goldPrice, loading: priceLoading, refreshGoldPrice, getRateForPurity, getRetailForPurity } = useGoldPrice();
   const [historyRecords, setHistoryRecords] = useState([]);
   const [historyStats, setHistoryStats] = useState(null);
@@ -393,13 +392,7 @@ export function GoldOverviewScreen({ navigation }) {
 
   const renderHeader = (
     <View style={styles.headerWrapper}>
-      <View style={styles.topMenuRow}>
-        <HamburgerButton
-          isOpen={drawer.isOpen}
-          animValue={drawer.animValue}
-          onPress={drawer.toggleDrawer}
-        />
-      </View>
+      <ExpandableMenuBar navigation={navigation} />
       <PageTitleBanner
         title="GOLD RATE"
         description={`Live Spot benchmarks, retail estimates, \nand 5-years historical market trends`}
@@ -408,53 +401,30 @@ export function GoldOverviewScreen({ navigation }) {
   );
 
   return (
-    <View style={styles.root}>
-      <ScrollView
-        style={styles.screen}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.goldDeep} />}
-        keyboardShouldPersistTaps="handled"
-        scrollEnabled={!drawer.isOpen}
-      >
-        <Toast message={error} type="error" visible={Boolean(error)} />
-        <ResponsiveContainer
-          headerContent={renderHeader}
-          leftContent={renderLeftColumn}
-          rightContent={renderRightColumn}
-          bottomContent={renderBottomSection}
-          scrollable={false}
-        />
-      </ScrollView>
-
-      {/* Side Navigation Drawer */}
-      <SideDrawer
-        isOpen={drawer.isOpen}
-        animValue={drawer.animValue}
-        onClose={drawer.closeDrawer}
-        navigation={navigation}
+    <ScrollView
+      style={styles.screen}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.goldDeep} />}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Toast message={error} type="error" visible={Boolean(error)} />
+      <ResponsiveContainer
+        headerContent={renderHeader}
+        leftContent={renderLeftColumn}
+        rightContent={renderRightColumn}
+        bottomContent={renderBottomSection}
+        scrollable={false}
       />
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.background
-  },
   screen: {
     flex: 1,
     backgroundColor: COLORS.background
   },
   headerWrapper: {
     width: '100%'
-  },
-  topMenuRow: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    paddingTop: SPACING.xs,
-    paddingBottom: SPACING.xs
   },
   liveCard: {
     padding: SPACING.lg

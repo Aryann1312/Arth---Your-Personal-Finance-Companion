@@ -20,7 +20,8 @@ export function HamburgerButton({
   animValue,
   onPress,
   style,
-  size = 44
+  size = 44,
+  borderless = false
 }) {
   // Safe fallback if animValue is not passed
   const fallbackAnim = React.useRef(new Animated.Value(isOpen ? 1 : 0)).current;
@@ -76,8 +77,9 @@ export function HamburgerButton({
       accessibilityState={{ expanded: isOpen }}
       style={[
         styles.button,
+        borderless && styles.borderless,
         { width: size, height: size },
-        isOpen && styles.buttonOpen,
+        isOpen && !borderless && styles.buttonOpen,
         style
       ]}
     >
@@ -149,6 +151,13 @@ const styles = StyleSheet.create({
         shadowRadius: 5
       }
     })
+  },
+  borderless: {
+    borderWidth: 0,
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
+    shadowOpacity: 0,
+    elevation: 0
   },
   buttonOpen: {
     borderColor: 'rgba(212, 175, 55, 0.4)',

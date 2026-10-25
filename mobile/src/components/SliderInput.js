@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Input } from './Input.js';
 import { COLORS, RADII, SPACING, formatCompactINR, formatINR } from '../theme/index.js';
 
@@ -25,10 +26,20 @@ export function SliderInput({
   const numericVal = Number(value) || min;
 
   const handleQuickSelect = (opt) => {
+    try {
+      Haptics.selectionAsync();
+    } catch {
+      // Ignore
+    }
     onValueChange(String(opt));
   };
 
   const handleStep = (direction) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {
+      // Ignore
+    }
     const next = direction === 'inc'
       ? Math.min(max, numericVal + step)
       : Math.max(min, numericVal - step);
@@ -118,23 +129,30 @@ const styles = StyleSheet.create({
   },
   stepperContainer: {
     flexDirection: 'row',
-    gap: 6
+    gap: 8
   },
   stepButton: {
-    width: 26,
-    height: 26,
-    borderRadius: RADII.sm,
-    backgroundColor: COLORS.surfaceMuted,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    width: 40,
+    height: 40,
+    minWidth: 40,
+    minHeight: 40,
+    borderRadius: RADII.md,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1.5,
+    borderColor: COLORS.borderLight,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    shadowColor: '#111111',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1
   },
   stepButtonText: {
-    fontSize: 16,
+    fontSize: 19,
     fontWeight: '700',
     color: COLORS.textPrimary,
-    lineHeight: 18
+    lineHeight: 21
   },
   inputWrapper: {
     marginBottom: SPACING.xs
@@ -143,27 +161,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 4
+    marginTop: 6
   },
   quickPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minHeight: 32,
     borderRadius: RADII.full,
-    backgroundColor: COLORS.surfaceMuted,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: COLORS.border
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   quickPillSelected: {
     backgroundColor: COLORS.goldLightBg,
-    borderColor: COLORS.goldMain
+    borderColor: COLORS.goldMain,
+    borderWidth: 1.5,
+    shadowColor: COLORS.goldMain,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2
   },
   quickPillText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
     color: COLORS.textSecondary
   },
   quickPillTextSelected: {
     color: COLORS.goldDeep,
-    fontWeight: '700'
+    fontWeight: '800'
   }
 });

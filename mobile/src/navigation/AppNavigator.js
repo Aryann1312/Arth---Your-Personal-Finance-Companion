@@ -9,7 +9,9 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Font from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../context/AuthContext.js';
 import { COLORS, RADII } from '../theme/index.js';
@@ -56,17 +58,31 @@ const GoldStack = createNativeStackNavigator();
 const GoldLoanStack = createNativeStackNavigator();
 const EMIStack = createNativeStackNavigator();
 
-// Header Avatar Button navigating to Profile
-function HeaderProfileButton({ navigation }) {
+// Unified Header Action Buttons (Saved, History, Profile Avatar) evenly spaced with no overlap
+function HeaderRightActions({ navigation, savedRoute }) {
   const { user } = useAuth();
-  const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : 'US';
+  const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : 'AR';
 
   return (
     <View style={styles.headerButtonsRow}>
+      {savedRoute ? (
+        <TouchableOpacity
+          onPress={() => navigation.navigate(savedRoute)}
+          style={styles.headerSavedBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Saved Calculations"
+          activeOpacity={0.75}
+        >
+          <Text style={styles.savedBtnText}>Saved</Text>
+        </TouchableOpacity>
+      ) : null}
+
       <TouchableOpacity
         onPress={() => navigation.navigate('MyHistory')}
         style={styles.headerHistoryBtn}
+        accessibilityRole="button"
         accessibilityLabel="My History"
+        activeOpacity={0.75}
       >
         <Text style={styles.historyBtnText}>History</Text>
       </TouchableOpacity>
@@ -74,12 +90,19 @@ function HeaderProfileButton({ navigation }) {
       <TouchableOpacity
         onPress={() => navigation.navigate('Profile')}
         style={styles.avatarButton}
-        accessibilityLabel="My Profile"
+        accessibilityRole="button"
+        accessibilityLabel="My Profile and Settings"
+        activeOpacity={0.75}
       >
         <Text style={styles.avatarText}>{initials}</Text>
       </TouchableOpacity>
     </View>
   );
+}
+
+// Deprecated alias for backwards compatibility
+function HeaderProfileButton({ navigation }) {
+  return <HeaderRightActions navigation={navigation} />;
 }
 
 // Brand Header Title: App logo without background circle + app name "Arth"
@@ -128,12 +151,30 @@ function GoldNavigator({ navigation }) {
         name="GoldOverview"
         component={GoldOverviewScreen}
         options={{
+          headerTitleAlign: 'left',
           headerTitle: () => <HeaderBrandTitle />,
-          headerRight: () => <HeaderProfileButton navigation={navigation} />
+          headerRight: () => <HeaderRightActions navigation={navigation} />
         }}
       />
       <GoldStack.Screen name="CompareDates" component={CompareDatesScreen} options={{ title: 'Compare Dates' }} />
-      <GoldStack.Screen name="DataSourceInfo" component={DataSourceInfoScreen} options={{ title: 'Data Methodology' }} />
+      <GoldStack.Screen
+        name="DataSourceInfo"
+        component={DataSourceInfoScreen}
+        options={({ navigation: screenNav }) => ({
+          title: 'Data Methodology',
+          headerTitleStyle: styles.subHeaderTitle,
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => screenNav.navigate('Settings')}
+              style={styles.headerSettingsBtn}
+              accessibilityLabel="Settings"
+              activeOpacity={0.7}
+            >
+              <Ionicons name="settings-outline" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )
+        })}
+      />
     </GoldStack.Navigator>
   );
 }
@@ -146,14 +187,13 @@ function GoldLoanNavigator({ navigation }) {
         name="GoldLoanMain"
         component={GoldLoanScreen}
         options={{
+          headerTitleAlign: 'left',
           headerTitle: () => <HeaderBrandTitle />,
           headerRight: () => (
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity onPress={() => navigation.navigate('SavedGoldLoans')} style={{ marginRight: 12 }}>
-                <Text style={styles.savedLink}>Saved</Text>
-              </TouchableOpacity>
-              <HeaderProfileButton navigation={navigation} />
-            </View>
+            <HeaderRightActions
+              navigation={navigation}
+              savedRoute="SavedGoldLoans"
+            />
           )
         }}
       />
@@ -170,14 +210,13 @@ function EMINavigator({ navigation }) {
         name="EMIMain"
         component={EMIScreen}
         options={{
+          headerTitleAlign: 'left',
           headerTitle: () => <HeaderBrandTitle />,
           headerRight: () => (
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity onPress={() => navigation.navigate('SavedEMI')} style={{ marginRight: 12 }}>
-                <Text style={styles.savedLink}>Saved</Text>
-              </TouchableOpacity>
-              <HeaderProfileButton navigation={navigation} />
-            </View>
+            <HeaderRightActions
+              navigation={navigation}
+              savedRoute="SavedEMI"
+            />
           )
         }}
       />
@@ -186,13 +225,29 @@ function EMINavigator({ navigation }) {
   );
 }
 
-// Main Bottom Tab Navigator
+// Main Bottom Tab Navigator with Safe Area Padding
 function MainTabs() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 8);
+  const tabBarHeight = 56 + bottomInset;
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: {
+          backgroundColor: COLORS.surface,
+          borderTopWidth: 1,
+          borderTopColor: COLORS.borderLight,
+          height: tabBarHeight,
+          paddingBottom: bottomInset,
+          paddingTop: 6,
+          elevation: 8,
+          shadowColor: '#111111',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.04,
+          shadowRadius: 6
+        },
         tabBarActiveTintColor: COLORS.goldDeep,
         tabBarInactiveTintColor: COLORS.textMuted,
         tabBarLabelStyle: styles.tabLabel
@@ -317,7 +372,8 @@ const styles = StyleSheet.create({
   headerButtonsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10
+    gap: 8,
+    marginRight: Platform.OS === 'ios' ? 0 : 6
   },
   headerBrandRow: {
     flexDirection: 'row',
@@ -330,16 +386,31 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     letterSpacing: 0.3
   },
+  headerSavedBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADII.sm,
+    backgroundColor: COLORS.goldLightBg,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.35)'
+  },
+  savedBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.goldDeep
+  },
   headerHistoryBtn: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: RADII.sm,
-    backgroundColor: COLORS.surfaceMuted
+    backgroundColor: COLORS.surfaceMuted,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight
   },
   historyBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.goldDeep
+    color: COLORS.textSecondary
   },
   avatarButton: {
     width: 32,
@@ -349,17 +420,33 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.goldMain,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    shadowColor: '#111111',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1
   },
   avatarText: {
     fontSize: 12,
     fontWeight: '800',
     color: COLORS.goldDeep
   },
-  savedLink: {
-    fontSize: 13,
+  headerSettingsBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.35)',
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4
+  },
+  subHeaderTitle: {
+    fontSize: 17,
     fontWeight: '700',
-    color: COLORS.goldDeep
+    color: COLORS.textPrimary
   },
   splashContainer: {
     flex: 1,

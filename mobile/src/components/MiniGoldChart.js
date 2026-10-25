@@ -4,9 +4,9 @@
  * soft area glow, interactive touch tooltips, and high/low tracking.
  */
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, useWindowDimensions, TouchableOpacity } from 'react-native';
-import Svg, { Path, Defs, LinearGradient, Stop, Circle } from 'react-native-svg';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, useWindowDimensions, TouchableOpacity, PanResponder } from 'react-native';
+import Svg, { Path, Defs, LinearGradient, Stop, Circle, Line } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { COLORS, RADII, SPACING, formatINR } from '../theme/index.js';
 
@@ -26,6 +26,11 @@ export function MiniGoldChart({
   const paddingTop = 20;
 
   const [activeIndex, setActiveIndex] = useState(null);
+
+  // Reset active tooltip when range or records change
+  useEffect(() => {
+    setActiveIndex(null);
+  }, [records]);
 
   const handleLayout = (e) => {
     const layoutWidth = e.nativeEvent?.layout?.width;
@@ -65,14 +70,40 @@ export function MiniGoldChart({
 
   const activePoint = activeIndex !== null && points[activeIndex] ? points[activeIndex] : points[points.length - 1];
 
-  const handleTouchPoint = (index) => {
-    try {
-      Haptics.selectionAsync();
-    } catch {
-      // Ignore
-    }
-    setActiveIndex(index);
+  // Touch scrubbing handler
+  const handleTouchAt = (touchX) => {
+    if (!points || points.length === 0) return;
+    const innerWidth = chartWidth - 20;
+    const clampedX = Math.max(10, Math.min(chartWidth - 10, touchX));
+    const ratio = (clampedX - 10) / (innerWidth || 1);
+    const targetIndex = Math.max(0, Math.min(points.length - 1, Math.round(ratio * (points.length - 1))));
+
+    setActiveIndex((prev) => {
+      if (prev !== targetIndex) {
+        try {
+          Haptics.selectionAsync();
+        } catch {
+          // Ignore
+        }
+      }
+      return targetIndex;
+    });
   };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        handleTouchAt(evt.nativeEvent.locationX);
+      },
+      onPanResponderMove: (evt) => {
+        handleTouchAt(evt.nativeEvent.locationX);
+      },
+      onPanResponderTerminationRequest: () => true,
+      onPanResponderRelease: () => {}
+    })
+  ).current;
 
   const ranges = ['1M', '3M', '6M', '1Y', '3Y', '5Y'];
 
@@ -101,8 +132,11 @@ export function MiniGoldChart({
         </View>
       </View>
 
-      {/* SVG Chart Surface */}
-      <View style={{ width: chartWidth, height: chartHeight, overflow: 'hidden' }}>
+      {/* SVG Chart Surface with Touch Scrubbing */}
+      <View
+        style={{ width: chartWidth, height: chartHeight, overflow: 'hidden' }}
+        {...panResponder.panHandlers}
+      >
         <Svg width={chartWidth} height={chartHeight}>
           <Defs>
             <LinearGradient id="goldAreaGrad" x1="0" y1="0" x2="0" y2="1">
@@ -123,19 +157,43 @@ export function MiniGoldChart({
           {/* Stroke Line */}
           <Path d={linePath} stroke="url(#goldLineGrad)" strokeWidth={2.5} fill="none" />
 
-          {/* Active indicator dot */}
+          {/* Vertical indicator dashed guideline */}
           {activePoint && (
-            <Circle
-              cx={activePoint.x}
-              cy={activePoint.y}
-              r={5}
-              fill="#FFFFFF"
-              stroke="#B8860B"
-              strokeWidth={2.5}
+            <Line
+              x1={activePoint.x}
+              y1={paddingTop - 5}
+              x2={activePoint.x}
+              y2={chartHeight - paddingBottom}
+              stroke="rgba(212, 175, 55, 0.45)"
+              strokeWidth={1.5}
+              strokeDasharray="4, 4"
             />
+          )}
+
+          {/* Active indicator ring & dot */}
+          {activePoint && (
+            <>
+              <Circle
+                cx={activePoint.x}
+                cy={activePoint.y}
+                r={6}
+                fill="#FFFFFF"
+                stroke="#B8860B"
+                strokeWidth={2.5}
+              />
+              <Circle
+                cx={activePoint.x}
+                cy={activePoint.y}
+                r={2.5}
+                fill="#B8860B"
+              />
+            </>
           )}
         </Svg>
       </View>
+
+      {/* Touch scrub hint */}
+      <Text style={styles.scrubHint}>Drag or tap along chart to inspect dates & rates</Text>
 
       {/* Range Filter Selector */}
       {showRangeSelector && (
@@ -250,6 +308,13 @@ const styles = StyleSheet.create({
   rangePillTextSelected: {
     color: COLORS.goldDeep,
     fontWeight: '800'
+  },
+  scrubHint: {
+    fontSize: 10.5,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginTop: 4,
+    fontStyle: 'italic'
   },
   emptyContainer: {
     alignItems: 'center',

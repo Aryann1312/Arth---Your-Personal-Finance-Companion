@@ -334,7 +334,12 @@ export function GoldOverviewScreen({ navigation }) {
           numberOfLines={1}
         />
       </View>
+    </View>
+  );
 
+  // Bottom Full-Width / Centered Section: Calculator & Retail Estimate
+  const renderBottomSection = (
+    <View style={styles.bottomSection}>
       {/* Gold Price Calculator - Placed directly above Indian Retail Estimate */}
       <GoldPriceCalculator goldPricePerGram24K={goldPrice?.inrPerGram?.['24K']} />
 
@@ -402,6 +407,7 @@ export function GoldOverviewScreen({ navigation }) {
         headerContent={renderHeader}
         leftContent={renderLeftColumn}
         rightContent={renderRightColumn}
+        bottomContent={renderBottomSection}
         scrollable={false}
       />
     </ScrollView>
@@ -463,13 +469,20 @@ const styles = StyleSheet.create({
     color: COLORS.goldDeep,
     marginBottom: SPACING.sm
   },
+  bottomSection: {
+    width: '100%',
+    alignItems: 'center'
+  },
   retailCard: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     backgroundColor: '#FAF5EE',
     borderWidth: 1,
     borderColor: 'rgba(212, 175, 55, 0.25)',
-    marginBottom: SPACING.xl
+    marginBottom: SPACING.xl,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center'
   },
   retailHeaderTouch: {
     flexDirection: 'row',

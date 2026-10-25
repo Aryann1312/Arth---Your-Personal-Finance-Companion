@@ -135,7 +135,10 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     marginTop: SPACING.md,
     marginBottom: SPACING.md,
-    backgroundColor: COLORS.surface
+    backgroundColor: COLORS.surface,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center'
   },
   cardTitle: {
     fontSize: 16,

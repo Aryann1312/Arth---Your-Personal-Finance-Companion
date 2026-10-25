@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsiveLayout, SPACING } from '../theme/index.js';
 
 export function ResponsiveContainer({
@@ -13,11 +14,14 @@ export function ResponsiveContainer({
   headerContent,
   leftContent,
   rightContent,
+  bottomContent,
   scrollable = true,
   style,
   contentContainerStyle
 }) {
   const { isTablet, horizontalPadding } = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
+  const bottomScrollPadding = Math.max(insets.bottom, 16) + 80;
 
   // If explicit leftContent and rightContent provided, use two-column structure
   if (leftContent && rightContent) {
@@ -30,6 +34,11 @@ export function ResponsiveContainer({
               <View style={styles.columnLeft}>{leftContent}</View>
               <View style={styles.columnRight}>{rightContent}</View>
             </View>
+            {bottomContent && (
+              <View style={styles.bottomWrapper}>
+                {bottomContent}
+              </View>
+            )}
           </View>
         );
       }
@@ -41,6 +50,7 @@ export function ResponsiveContainer({
           <View style={styles.singleColumn}>
             {leftContent}
             {rightContent}
+            {bottomContent}
           </View>
         </View>
       );
@@ -52,7 +62,7 @@ export function ResponsiveContainer({
           style={[styles.container, style]}
           contentContainerStyle={[
             styles.tabletScrollContent,
-            { paddingHorizontal: horizontalPadding },
+            { paddingHorizontal: horizontalPadding, paddingBottom: bottomScrollPadding },
             contentContainerStyle
           ]}
           showsVerticalScrollIndicator={false}
@@ -62,6 +72,11 @@ export function ResponsiveContainer({
             <View style={styles.columnLeft}>{leftContent}</View>
             <View style={styles.columnRight}>{rightContent}</View>
           </View>
+          {bottomContent && (
+            <View style={styles.bottomWrapper}>
+              {bottomContent}
+            </View>
+          )}
         </ScrollView>
       );
     }
@@ -72,7 +87,7 @@ export function ResponsiveContainer({
         style={[styles.container, style]}
         contentContainerStyle={[
           styles.phoneScrollContent,
-          { paddingHorizontal: horizontalPadding },
+          { paddingHorizontal: horizontalPadding, paddingBottom: bottomScrollPadding },
           contentContainerStyle
         ]}
         showsVerticalScrollIndicator={false}
@@ -81,6 +96,7 @@ export function ResponsiveContainer({
         <View style={styles.singleColumn}>
           {leftContent}
           {rightContent}
+          {bottomContent}
         </View>
       </ScrollView>
     );
@@ -92,14 +108,15 @@ export function ResponsiveContainer({
       <ScrollView
         style={[styles.container, style]}
         contentContainerStyle={[
-          styles.phoneScrollContent,
-          { paddingHorizontal: horizontalPadding },
+          isTablet ? styles.tabletScrollContent : styles.phoneScrollContent,
+          { paddingHorizontal: horizontalPadding, paddingBottom: bottomScrollPadding },
           contentContainerStyle
         ]}
         showsVerticalScrollIndicator={false}
       >
         {headerContent}
         {children}
+        {bottomContent}
       </ScrollView>
     );
   }
@@ -108,6 +125,7 @@ export function ResponsiveContainer({
     <View style={[styles.container, { paddingHorizontal: horizontalPadding }, style]}>
       {headerContent}
       {children}
+      {bottomContent}
     </View>
   );
 }
@@ -128,7 +146,13 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 1100,
     gap: SPACING.xl,
-    alignItems: 'flex-start'
+    alignItems: 'flex-start',
+    alignSelf: 'center'
+  },
+  bottomWrapper: {
+    width: '100%',
+    maxWidth: 1100,
+    alignSelf: 'center'
   },
   columnLeft: {
     flex: 1

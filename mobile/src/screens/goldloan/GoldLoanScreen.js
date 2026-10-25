@@ -1,10 +1,17 @@
 /**
  * @file GoldLoanScreen.js
- * @description Gold Loan Calculator Screen with tiered regulatory LTV, collateral limit checks,
- * separation of intrinsic value vs eligible loan, 3 repayment methods, and illustrative lender comparisons.
+ * @description Luxury Gold Loan Calculator Screen:
+ * - RBI-compliant tiered LTV eligibility (85% <= ₹2.5L, 80% ₹2.5L-₹5L, 75% > ₹5L)
+ * - Total maturity obligation accounting for bullet repayment loans
+ * - Clear separation of user Requested Amount from Estimated Maximum Loan Eligibility
+ * - Transparent compliant alternative calculation when requested amount exceeds ceiling
+ * - Stone and non-gold deductions for jewellery
+ * - Provenance labeling and verified rate status (Live vs Indicative vs Manual Override)
+ * - Reducing-balance EMI, monthly interest, and bullet repayment schedules
+ * - Responsive 2x2 grid on tablet with centered primary CTA and middle-aligned results card
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,9 +19,13 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
-  Alert
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Animated
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 
 import { PearlCard } from '../../components/PearlCard.js';
 import { Input } from '../../components/Input.js';
@@ -24,19 +35,24 @@ import { AnimatedNumber } from '../../components/AnimatedNumber.js';
 import { ResponsiveContainer } from '../../components/ResponsiveContainer.js';
 import { PageTitleBanner } from '../../components/PageTitleBanner.js';
 import { Toast } from '../../components/Toast.js';
-import { COLORS, RADII, SPACING, formatINR } from '../../theme/index.js';
+import { COLORS, RADII, SPACING, SHADOWS, formatINR, formatCompactINR, useResponsiveLayout } from '../../theme/index.js';
 
+import { SectionCard, OptionCard, SummaryTile } from '../../components/goldloan/index.js';
 import { calculateGoldLoan } from '../../lib/calc/goldLoan.js';
 import { ILLUSTRATIVE_LENDER_PRESETS } from '../../lib/calc/config.js';
 import { apiRequest } from '../../services/api.js';
 import { useGoldPrice } from '../../context/GoldPriceContext.js';
+import { useSettings } from '../../context/SettingsContext.js';
 import { logger } from '../../services/eventLogger.js';
 
 export function GoldLoanScreen({ navigation }) {
   const { goldPrice, getRateForPurity } = useGoldPrice();
+  const { reduceMotion } = useSettings();
+  const { isTablet } = useResponsiveLayout();
 
   // Inputs
   const [weight, setWeight] = useState('50');
+  const [stoneDeductions, setStoneDeductions] = useState('0');
   const [purity, setPurity] = useState('22K'); // '24K' | '22K' | '18K'
   const [isManualRate, setIsManualRate] = useState(false);
   const [manualRate, setManualRate] = useState('');
@@ -56,6 +72,38 @@ export function GoldLoanScreen({ navigation }) {
   const [toastMessage, setToastMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Compare Lender Assumptions Dropdown state
+  const [isLenderDropdownOpen, setIsLenderDropdownOpen] = useState(false);
+  const lenderDropdownArrowAnim = useRef(new Animated.Value(0)).current;
+
+  // Staggered Entrance Animations
+  const card1Anim = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  const card2Anim = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  const card3Anim = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  const ctaAnim = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  const lenderAnim = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  const resultsAnim = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (!reduceMotion) {
+      Animated.stagger(80, [
+        Animated.timing(card1Anim, { toValue: 1, duration: 320, useNativeDriver: true }),
+        Animated.timing(card2Anim, { toValue: 1, duration: 320, useNativeDriver: true }),
+        Animated.timing(card3Anim, { toValue: 1, duration: 320, useNativeDriver: true }),
+        Animated.timing(lenderAnim, { toValue: 1, duration: 320, useNativeDriver: true }),
+        Animated.timing(ctaAnim, { toValue: 1, duration: 320, useNativeDriver: true }),
+        Animated.timing(resultsAnim, { toValue: 1, duration: 320, useNativeDriver: true })
+      ]).start();
+    }
+  }, [reduceMotion]);
+
+  const card1TranslateY = card1Anim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
+  const card2TranslateY = card2Anim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
+  const card3TranslateY = card3Anim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
+  const ctaTranslateY = ctaAnim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
+  const lenderTranslateY = lenderAnim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
+  const resultsTranslateY = resultsAnim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
+
   // Selected lender preset reference
   const selectedLender = useMemo(() => {
     return ILLUSTRATIVE_LENDER_PRESETS.find(p => p.id === selectedLenderId) || defaultPreset;
@@ -69,7 +117,7 @@ export function GoldLoanScreen({ navigation }) {
   // Effective rate used for selected purity
   const effectiveRate = isManualRate && manualRate ? Number(manualRate) : benchmarkRateForSelectedPurity;
 
-  // Switching purity clears manual override and displays notice (Requirement 2.5)
+  // Switching purity clears manual override and displays notice
   const handlePurityChange = (newPurity) => {
     setPurity(newPurity);
     if (isManualRate) {
@@ -78,6 +126,61 @@ export function GoldLoanScreen({ navigation }) {
       const newBenchmark = getRateForPurity(newPurity);
       setToastMessage(`Purity changed to ${newPurity}. Benchmark rate updated to ${formatINR(newBenchmark)}/g. Manual override cleared.`);
     }
+  };
+
+  // Collateral type selection handler with haptic feedback
+  const handleCollateralTypeChange = (type) => {
+    try {
+      Haptics.selectionAsync();
+    } catch {
+      // Ignore
+    }
+    setCollateralType(type);
+    if (type === 'coin') {
+      setStoneDeductions('0');
+    }
+  };
+
+  // Toggle or edit rate
+  const handleToggleManualRate = () => {
+    try {
+      Haptics.selectionAsync();
+    } catch {
+      // Ignore
+    }
+    if (isManualRate) {
+      setIsManualRate(false);
+      setManualRate('');
+      setToastMessage(`Switched to live benchmark rate for ${purity}`);
+      setTimeout(() => setToastMessage(''), 2000);
+    } else {
+      setIsManualRate(true);
+      setManualRate(String(effectiveRate || ''));
+    }
+  };
+
+  // Reset to live rate
+  const handleResetRate = () => {
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      // Ignore
+    }
+    setIsManualRate(false);
+    setManualRate('');
+    setToastMessage(`Reset to benchmark rate: ${formatINR(benchmarkRateForSelectedPurity)}/g`);
+    setTimeout(() => setToastMessage(''), 2000);
+  };
+
+  // Primary Action Button (Calculate / See Eligibility)
+  const handleCalculateAction = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {
+      // Ignore
+    }
+    setToastMessage(`Calculated: Up to ${formatINR(result.loan.estimatedMaxLoanEligibility)} loan eligibility`);
+    setTimeout(() => setToastMessage(''), 2500);
   };
 
   // When lender changes, update default rate & tenure from preset
@@ -92,10 +195,44 @@ export function GoldLoanScreen({ navigation }) {
     setTenureMonths(String(preset.defaultTenureMonths));
   };
 
-  // Instant Calculation (Purity applied once on effectiveRate for selected purity)
+  // Toggle Compare Lender Assumptions Dropdown
+  const toggleLenderDropdown = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {
+      // Ignore
+    }
+    const nextState = !isLenderDropdownOpen;
+    setIsLenderDropdownOpen(nextState);
+    Animated.timing(lenderDropdownArrowAnim, {
+      toValue: nextState ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true
+    }).start();
+  };
+
+  const lenderArrowRotation = lenderDropdownArrowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg']
+  });
+
+  const handleSelectLenderPreset = (preset) => {
+    handleSelectLender(preset);
+    setIsLenderDropdownOpen(false);
+    Animated.timing(lenderDropdownArrowAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true
+    }).start();
+    setToastMessage(`Preset applied: ${preset.name} (${preset.defaultAnnualRate}% p.a.)`);
+    setTimeout(() => setToastMessage(''), 2000);
+  };
+
+  // Instant Calculation Engine (Pure functional call adhering to RBI directions)
   const result = useMemo(() => {
     return calculateGoldLoan({
       weight: Number(weight) || 0,
+      stoneDeductions: Number(stoneDeductions) || 0,
       purity,
       goldRatePerGram: effectiveRate,
       ratePerGramSelectedPurity: effectiveRate,
@@ -107,9 +244,12 @@ export function GoldLoanScreen({ navigation }) {
       collateralType,
       processingFee: selectedLender.processingFeePercent,
       feeType: selectedLender.feeType,
-      lenderPreset: selectedLender
+      lenderPreset: selectedLender,
+      sourceName: goldPrice?.source || 'World Gold Council (Goldhub) & LBMA',
+      isManualOverride: isManualRate,
+      isLiveMarket: Boolean(goldPrice?.isLive && !isManualRate)
     });
-  }, [weight, purity, effectiveRate, requestedLoanAmount, annualRate, tenureMonths, repaymentMethod, collateralType, selectedLender]);
+  }, [weight, stoneDeductions, purity, effectiveRate, requestedLoanAmount, annualRate, tenureMonths, repaymentMethod, collateralType, selectedLender, goldPrice, isManualRate]);
 
   // Log calculation debounced
   useEffect(() => {
@@ -119,6 +259,7 @@ export function GoldLoanScreen({ navigation }) {
       screen: 'GoldLoanScreen',
       inputs: {
         weight: Number(weight),
+        stoneDeductions: Number(stoneDeductions) || 0,
         purity,
         goldRatePerGram: effectiveRate,
         annualRate: Number(annualRate),
@@ -128,17 +269,17 @@ export function GoldLoanScreen({ navigation }) {
       },
       resultSummary: {
         assessedValue: result.valuation.assessedGoldValue,
-        maxEligibleLoan: result.loan.maxEligibleLoan,
-        approvedLoanAmount: result.loan.approvedLoanAmount,
+        estimatedMaxLoanEligibility: result.loan.estimatedMaxLoanEligibility,
+        finalEstimatedLoanAmount: result.loan.finalEstimatedLoanAmount,
         periodicPayment: result.loan.periodicPayment,
         appliedTier: result.ltv.appliedTier
       }
     });
-  }, [weight, purity, effectiveRate, requestedLoanAmount, annualRate, repaymentMethod, collateralType, selectedLenderId]);
+  }, [weight, stoneDeductions, purity, effectiveRate, requestedLoanAmount, annualRate, repaymentMethod, collateralType, selectedLenderId]);
 
-  // Save calculation
+  // Save calculation to My History with debounce/prevent double tap
   const handleSave = async () => {
-    if (!saveLabel.trim()) return;
+    if (!saveLabel.trim() || isSaving) return;
     setIsSaving(true);
 
     try {
@@ -149,19 +290,22 @@ export function GoldLoanScreen({ navigation }) {
           label: saveLabel.trim(),
           inputs: {
             weight: Number(weight),
+            stoneDeductions: Number(stoneDeductions) || 0,
             purity,
-            goldRatePerGram: Number(goldRatePerGram),
+            goldRatePerGram: Number(effectiveRate),
             repaymentMethod,
             collateralType,
             annualRate: Number(annualRate),
             tenureMonths: Number(tenureMonths),
-            lender: selectedLender.name
+            lender: selectedLender.name,
+            requestedLoanAmount: requestedLoanAmount ? Number(requestedLoanAmount) : null
           },
           results: {
+            eligibleNetWeightGrams: result.collateral.eligibleNetWeightGrams,
             pureWeightGrams: result.collateral.pureGoldEquivalentWeightGrams,
             assessedGoldValue: result.valuation.assessedGoldValue,
-            maxEligibleLoan: result.loan.maxEligibleLoan,
-            approvedLoanAmount: result.loan.approvedLoanAmount,
+            estimatedMaxLoanEligibility: result.loan.estimatedMaxLoanEligibility,
+            finalEstimatedLoanAmount: result.loan.finalEstimatedLoanAmount,
             periodicPayment: result.loan.periodicPayment,
             totalInterest: result.loan.totalInterest,
             totalRepayment: result.loan.totalRepayment,
@@ -171,7 +315,7 @@ export function GoldLoanScreen({ navigation }) {
       });
 
       setSaveModalVisible(false);
-      setToastMessage('Gold loan calculation saved!');
+      setToastMessage('Gold loan calculation saved to My History!');
       setTimeout(() => setToastMessage(''), 3000);
     } catch (err) {
       Alert.alert('Save Failed', err.message);
@@ -180,349 +324,531 @@ export function GoldLoanScreen({ navigation }) {
     }
   };
 
-  // Left Column: Inputs & Collateral Specifications
-  const renderInputs = (
-    <View>
-      <PearlCard goldTrim={true}>
-        <Text style={styles.cardHeaderTitle}>Gold Collateral Details</Text>
+  // CARD 1: Gold Details
+  const renderCard1 = (
+    <SectionCard
+      badge="1"
+      title="Gold Details"
+      subtitle="Select collateral category, weight and hallmark purity"
+      style={isTablet ? styles.sectionCardTablet : undefined}
+    >
+      {/* Collateral Type Toggle */}
+      <Text style={styles.inputFieldLabel}>Collateral Classification</Text>
+      <View style={styles.optionRow}>
+        <OptionCard
+          title="Jewellery / Ornaments"
+          subtitle="(Max 1 kg)"
+          isSelected={collateralType === 'ornament'}
+          onPress={() => handleCollateralTypeChange('ornament')}
+          accessibilityLabel="Jewellery and Ornaments, maximum 1 kilogram"
+        />
+        <OptionCard
+          title="Gold Coins"
+          subtitle="(Max 50 g)"
+          isSelected={collateralType === 'coin'}
+          onPress={() => handleCollateralTypeChange('coin')}
+          accessibilityLabel="Gold Coins, maximum 50 grams"
+        />
+      </View>
 
-        {/* Collateral Type Toggle */}
-        <View style={styles.pillToggleRow}>
-          <TouchableOpacity
-            onPress={() => setCollateralType('ornament')}
-            style={[styles.pillToggleBtn, collateralType === 'ornament' && styles.pillToggleBtnActive]}
-          >
-            <Text style={[styles.pillToggleText, collateralType === 'ornament' && styles.pillToggleTextActive]}>
-              Jewellery / Ornaments (Max 1 kg)
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setCollateralType('coin')}
-            style={[styles.pillToggleBtn, collateralType === 'coin' && styles.pillToggleBtnActive]}
-          >
-            <Text style={[styles.pillToggleText, collateralType === 'coin' && styles.pillToggleTextActive]}>
-              Coins (Max 50 g)
-            </Text>
-          </TouchableOpacity>
+      {/* Collateral limit error warning if breached */}
+      {!result.collateral.isCollateralValid && (
+        <View style={styles.collateralWarningBox}>
+          <Text style={styles.collateralWarningText}>
+            ⚠️ {result.collateral.collateralLimitError}
+          </Text>
         </View>
+      )}
 
-        {/* Collateral limit error warning if breached */}
-        {!result.collateral.isCollateralValid && (
-          <View style={styles.collateralWarningBox}>
-            <Text style={styles.collateralWarningText}>
-              ⚠️ {result.collateral.collateralLimitError}
+      {/* Gross Weight with 40x40 Stepper Buttons and Gold Quick Chips */}
+      <SliderInput
+        label="Gross Gold Weight (Grams)"
+        value={weight}
+        onValueChange={setWeight}
+        min={1}
+        max={collateralType === 'coin' ? 50 : 500}
+        step={5}
+        suffix="g"
+        quickOptions={collateralType === 'coin' ? ['5', '10', '20', '50'] : ['20', '50', '100', '250']}
+        labelStyle={styles.inputFieldLabel}
+      />
+
+      {/* Stone & Non-Gold Deductions (For Ornaments) */}
+      {collateralType === 'ornament' && (
+        <View style={styles.stoneDeductionBox}>
+          <View style={styles.stoneHeaderRow}>
+            <Text style={styles.inputFieldLabel}>Stone & Non-Gold Deductions (Grams)</Text>
+            {Number(stoneDeductions) > 0 && (
+              <View style={styles.netWeightBadge}>
+                <Text style={styles.netWeightBadgeText}>
+                  Net Gold: {result.collateral.eligibleNetWeightGrams}g
+                </Text>
+              </View>
+            )}
+          </View>
+          <Input
+            value={stoneDeductions}
+            onChangeText={(txt) => setStoneDeductions(txt.replace(/[^0-9.]/g, ''))}
+            keyboardType="decimal-pad"
+            suffix="g"
+            placeholder="0"
+            style={styles.whiteInputWrapper}
+          />
+          {/* Quick Deduction Chips */}
+          <View style={styles.quickChipRow}>
+            {['0', '2', '5', '10', '15'].map((chip) => {
+              const isActive = stoneDeductions === chip;
+              return (
+                <TouchableOpacity
+                  key={chip}
+                  onPress={() => setStoneDeductions(chip)}
+                  style={[styles.quickChip, isActive && styles.quickChipActive]}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Deduct ${chip} grams`}
+                >
+                  <Text style={[styles.quickChipText, isActive && styles.quickChipTextActive]}>
+                    {chip === '0' ? 'None (0g)' : `-${chip}g`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={styles.stoneNoticeText}>
+            Stones, wax, and enamel are excluded from regulatory collateral valuation.
+          </Text>
+        </View>
+      )}
+
+      {/* Purity Hallmark Cards */}
+      <Text style={[styles.inputFieldLabel, { marginTop: SPACING.md }]}>Gold Purity Hallmark</Text>
+      <View style={styles.optionRow}>
+        {[
+          { p: '24K', title: '24K', sub: '100% (Pure)' },
+          { p: '22K', title: '22K', sub: '91.6% Hallmark' },
+          { p: '18K', title: '18K', sub: '75.0% Hallmark' }
+        ].map((item) => (
+          <OptionCard
+            key={item.p}
+            title={item.title}
+            subtitle={item.sub}
+            isSelected={purity === item.p}
+            onPress={() => handlePurityChange(item.p)}
+            accessibilityLabel={`${item.title} Hallmark, ${item.sub}`}
+          />
+        ))}
+      </View>
+    </SectionCard>
+  );
+
+  // CARD 2: Rate & Valuation
+  const renderCard2 = (
+    <SectionCard
+      badge="2"
+      title="Rate & Intrinsic Value"
+      subtitle="Reference benchmark and pure fine gold conversion"
+      style={isTablet ? styles.sectionCardTablet : undefined}
+      contentStyle={isTablet ? styles.card2ContentTablet : undefined}
+    >
+      <View>
+        {/* Purity-Aware Benchmark Rate Header */}
+        <View style={styles.rateHeaderRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.inputFieldLabel}>{purity} Valuation Rate</Text>
+            <Text style={styles.rateStatusProvenanceText}>
+              {result.valuation.statusLabel} • {goldPrice?.asOfIST ? `As of ${goldPrice.asOfIST}` : 'Indicative reference'}
             </Text>
           </View>
-        )}
-
-        <SliderInput
-          label="Gross Gold Weight (Grams)"
-          value={weight}
-          onValueChange={setWeight}
-          min={1}
-          max={collateralType === 'coin' ? 50 : 500}
-          step={5}
-          suffix="g"
-          quickOptions={collateralType === 'coin' ? ['5', '10', '20', '50'] : ['20', '50', '100', '250']}
-        />
-
-        {/* Purity Segmented Control (2.5) */}
-        <Text style={styles.inputLabel}>Gold Purity Hallmark</Text>
-        <View style={styles.purityRow}>
-          {['24K', '22K', '18K'].map((p) => {
-            const isSelected = purity === p;
-            return (
-              <TouchableOpacity
-                key={p}
-                onPress={() => handlePurityChange(p)}
-                style={[styles.purityBtn, isSelected && styles.purityBtnActive]}
-              >
-                <Text style={[styles.purityBtnTitle, isSelected && styles.purityBtnTitleActive]}>{p}</Text>
-                <Text style={[styles.purityBtnSub, isSelected && styles.purityBtnSubActive]}>
-                  {p === '24K' ? '100% (Pure)' : p === '22K' ? '91.6% Hallmark' : '75.0% Hallmark'}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Purity-Aware Gold Benchmark Rate & Manual Override Toggle (2.5) */}
-        <View style={styles.rateHeaderRow}>
-          <Text style={styles.inputLabel}>{purity} Gold Benchmark Rate</Text>
-          <TouchableOpacity onPress={() => {
-            if (isManualRate) {
-              setIsManualRate(false);
-              setManualRate('');
-            } else {
-              setIsManualRate(true);
-              setManualRate(String(effectiveRate || ''));
-            }
-          }}>
+          <TouchableOpacity
+            onPress={handleToggleManualRate}
+            style={styles.editRatePill}
+            accessibilityRole="button"
+            accessibilityLabel={isManualRate ? 'Auto Benchmark Rate' : 'Edit Rate'}
+            activeOpacity={0.75}
+          >
+            <Ionicons
+              name={isManualRate ? 'checkmark-circle-outline' : 'pencil-outline'}
+              size={13}
+              color={COLORS.goldDeep}
+            />
             <Text style={styles.overrideToggleText}>
-              {isManualRate ? 'Auto Benchmark Rate' : 'Manual Override'}
+              {isManualRate ? 'Auto Benchmark' : 'Edit Rate'}
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* White Pure Input */}
         <Input
           value={isManualRate ? manualRate : (effectiveRate ? String(effectiveRate) : '')}
           onChangeText={(txt) => {
             setIsManualRate(true);
             setManualRate(txt);
           }}
-          keyboardType="numeric"
+          keyboardType="decimal-pad"
           prefix="₹"
           suffix="/ gram"
-          editable={isManualRate}
-          style={{ marginBottom: 4 }}
+          editable={true}
+          style={styles.whiteInputWrapper}
         />
+
+        {/* Reset to live rate link when overridden */}
+        {isManualRate && (
+          <TouchableOpacity
+            onPress={handleResetRate}
+            style={styles.resetRateRow}
+            accessibilityRole="button"
+            accessibilityLabel="Reset to live benchmark rate"
+            activeOpacity={0.75}
+          >
+            <Ionicons name="refresh-outline" size={13} color={COLORS.goldDeep} />
+            <Text style={styles.resetRateLinkText}>
+              Reset to benchmark ({formatINR(benchmarkRateForSelectedPurity)}/g)
+            </Text>
+          </TouchableOpacity>
+        )}
+
         <Text style={styles.rateNoticeText}>
-          Rate applied for {purity}: {formatINR(effectiveRate)} / gram ({goldPrice?.basisLabel || 'Indicative benchmark, before duty and GST'})
+          {result.valuation.methodologyDescription || `Rate applied for ${purity}: ${formatINR(effectiveRate)} / gram`}
         </Text>
+      </View>
 
-        {/* Pure Gold Equivalent Badge */}
-        <View style={[styles.pureWeightBadge, { marginTop: SPACING.md }]}>
-          <Text style={styles.pureWeightLabel}>Pure Gold Equivalent (24K fine):</Text>
-          <Text style={styles.pureWeightValue}>{result.collateral.pureGoldEquivalentWeightGrams} g</Text>
+      {/* Highlighted Pure Gold Equivalent Summary Tile */}
+      <SummaryTile
+        label="Collateral Pure Gold Equivalent:"
+        subtitle={`Net pure metal: ${result.collateral.eligibleNetWeightGrams}g eligible × ${result.collateral.purityFactor} (${result.collateral.purityLabel})`}
+        value={result.collateral.pureGoldEquivalentWeightGrams}
+        unit="g"
+        style={{ marginTop: SPACING.sm }}
+      />
+    </SectionCard>
+  );
+
+  // CARD 3: Loan Preferences
+  const renderCard3 = (
+    <SectionCard
+      badge="3"
+      title="Loan Preferences"
+      subtitle="Repayment schedule and desired borrowing amount"
+      style={isTablet ? styles.sectionCardTablet : undefined}
+    >
+      {/* Equal-Height Repayment Method Options */}
+      <Text style={styles.inputFieldLabel}>Repayment Structure</Text>
+      <View style={styles.optionRow}>
+        {[
+          { id: 'bullet', title: 'Monthly Interest', sub: 'Principal at end' },
+          { id: 'emi', title: 'Regular EMI', sub: 'Installments' },
+          { id: 'maturity', title: 'Bullet Repayment', sub: 'All at end' }
+        ].map((m) => (
+          <OptionCard
+            key={m.id}
+            title={m.title}
+            subtitle={m.sub}
+            isSelected={repaymentMethod === m.id}
+            onPress={() => setRepaymentMethod(m.id)}
+            minHeight={76}
+            accessibilityLabel={`${m.title}, ${m.sub}`}
+          />
+        ))}
+      </View>
+
+      {/* Requested Loan Amount (Optional) */}
+      <Input
+        label="Desired Loan Amount (Optional)"
+        value={requestedLoanAmount}
+        onChangeText={(txt) => setRequestedLoanAmount(txt.replace(/[^0-9.]/g, ''))}
+        placeholder="Leave blank for estimated maximum eligibility"
+        keyboardType="decimal-pad"
+        prefix="₹"
+        style={[{ marginTop: SPACING.md }, styles.whiteInputWrapper]}
+      />
+
+      {/* Real-time notice when requested exceeds regulatory maximum */}
+      {result.loan.hasExceededEligibility && (
+        <View style={styles.inlineWarningBox}>
+          <Text style={styles.inlineWarningText}>
+            ⚠️ Requested ₹{Number(requestedLoanAmount).toLocaleString('en-IN')} exceeds regulatory limit of {formatINR(result.loan.estimatedMaxLoanEligibility)}. A compliant alternative will be calculated.
+          </Text>
         </View>
+      )}
+    </SectionCard>
+  );
 
-        {/* Repayment Method Selector */}
-        <Text style={[styles.inputLabel, { marginTop: SPACING.md }]}>Repayment Structure</Text>
-        <View style={styles.repaymentRow}>
-          {[
-            { id: 'bullet', label: 'Monthly Interest', sub: 'Principal at end' },
-            { id: 'emi', label: 'Regular EMI', sub: 'Installments' },
-            { id: 'maturity', label: 'Bullet Repayment', sub: 'All at end' }
-          ].map((m) => {
-            const isSelected = repaymentMethod === m.id;
-            return (
-              <TouchableOpacity
-                key={m.id}
-                onPress={() => setRepaymentMethod(m.id)}
-                style={[styles.repaymentBtn, isSelected && styles.repaymentBtnActive]}
-              >
-                <Text style={[styles.repaymentTitle, isSelected && styles.repaymentTitleActive]}>{m.label}</Text>
-                <Text style={[styles.repaymentSub, isSelected && styles.repaymentSubActive]}>{m.sub}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+  // CARD 4: Compare Lender Assumptions
+  const renderCard4 = (
+    <SectionCard
+      badge="4"
+      title="Compare Lender Assumptions"
+      subtitle="Select a preset to auto-fill interest rate & tenure"
+      style={isTablet ? styles.sectionCardTablet : undefined}
+    >
+      {/* Simple Dropdown Trigger */}
+      <Text style={styles.inputFieldLabel}>Lender Preset</Text>
+      <TouchableOpacity
+        onPress={toggleLenderDropdown}
+        style={[styles.simpleDropdownTrigger, isLenderDropdownOpen && styles.simpleDropdownTriggerActive]}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`Select lender preset. Currently: ${selectedLender.name}`}
+        accessibilityExpanded={isLenderDropdownOpen}
+      >
+        <Text style={styles.simpleDropdownSelectedText} numberOfLines={1}>
+          {selectedLender.name}
+        </Text>
+        <Animated.View style={{ transform: [{ rotate: lenderArrowRotation }] }}>
+          <Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} />
+        </Animated.View>
+      </TouchableOpacity>
 
-        {/* Requested Loan Amount (Optional) */}
-        <Input
-          label="Desired Loan Amount (Optional)"
-          value={requestedLoanAmount}
-          onChangeText={setRequestedLoanAmount}
-          placeholder="Leave blank for max eligible"
-          keyboardType="numeric"
-          prefix="₹"
-          style={{ marginTop: SPACING.md }}
-        />
-      </PearlCard>
-
-      {/* Illustrative Lender Comparison Cards (2.1) */}
-      <View style={styles.lenderSection}>
-        <Text style={styles.sectionHeaderTitle}>Compare Lender Assumptions</Text>
-        <Text style={styles.sectionSubtitle}>Select an illustrative preset (drives interest rate & tenure):</Text>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.lendersScroll}>
-          {ILLUSTRATIVE_LENDER_PRESETS.map((preset) => {
+      {/* Simple Dropdown Menu */}
+      {isLenderDropdownOpen && (
+        <View style={styles.simpleDropdownMenu}>
+          {ILLUSTRATIVE_LENDER_PRESETS.map((preset, index) => {
             const isSelected = selectedLenderId === preset.id;
             return (
               <TouchableOpacity
                 key={preset.id}
-                onPress={() => handleSelectLender(preset)}
-                style={[styles.lenderCard, isSelected && styles.lenderCardActive]}
+                onPress={() => handleSelectLenderPreset(preset)}
+                style={[
+                  styles.simpleDropdownItem,
+                  index > 0 && styles.simpleDropdownItemBorder,
+                  isSelected && styles.simpleDropdownItemSelected
+                ]}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`${preset.name}, ${preset.defaultAnnualRate} percent`}
               >
-                <View style={styles.lenderBadgeRow}>
-                  <Text style={styles.lenderCategory}>{preset.category}</Text>
-                  {preset.isIllustrative && (
-                    <View style={styles.illustrativeBadge}>
-                      <Text style={styles.illustrativeBadgeText}>Illustrative</Text>
-                    </View>
+                <Text style={[styles.simpleDropdownItemText, isSelected && styles.simpleDropdownItemTextActive]}>
+                  {preset.name}
+                </Text>
+                <View style={styles.simpleDropdownItemRight}>
+                  <Text style={[styles.simpleDropdownItemRate, isSelected && styles.simpleDropdownItemRateActive]}>
+                    {preset.defaultAnnualRate}%
+                  </Text>
+                  {isSelected && (
+                    <Ionicons name="checkmark" size={16} color={COLORS.goldDeep} style={{ marginLeft: 6 }} />
                   )}
                 </View>
-                <Text style={styles.lenderName}>{preset.name}</Text>
-                <Text style={styles.lenderRate}>{preset.defaultAnnualRate}% p.a.</Text>
-                <Text style={styles.lenderTenure}>Tenure: Up to {preset.maxTenureMonths} Mos</Text>
-                <Text style={styles.lenderFee}>
-                  Fee: {preset.processingFeePercent > 0 ? `${preset.processingFeePercent}%` : `₹${preset.processingFeeFlat}`}
-                </Text>
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
+      )}
 
-        {/* Editable Custom Annual Interest Rate (2.1) */}
-        <View style={styles.customRateBox}>
-          <SliderInput
-            label="Annual Interest Rate (% p.a.)"
-            value={annualRate}
-            onValueChange={setAnnualRate}
-            min={5.0}
-            max={24.0}
-            step={0.25}
-            suffix="%"
-            quickOptions={['8.75', '9.50', '10.50', '12.00']}
-          />
+      {/* Minimal 3-Metric Info Box */}
+      <View style={styles.minimalInfoBox}>
+        <View style={styles.minimalInfoCol}>
+          <Text style={styles.minimalInfoLabel}>Interest Rate</Text>
+          <Text style={styles.minimalInfoValueGold}>{selectedLender.defaultAnnualRate}% p.a.</Text>
+        </View>
+
+        <View style={styles.minimalInfoDivider} />
+
+        <View style={styles.minimalInfoCol}>
+          <Text style={styles.minimalInfoLabel}>Max Tenure</Text>
+          <Text style={styles.minimalInfoValue}>{selectedLender.maxTenureMonths} Months</Text>
+        </View>
+
+        <View style={styles.minimalInfoDivider} />
+
+        <View style={styles.minimalInfoCol}>
+          <Text style={styles.minimalInfoLabel}>Processing Fee</Text>
+          <Text style={styles.minimalInfoValue}>
+            {selectedLender.feeType === 'percent' ? `${selectedLender.processingFeePercent}%` : `₹${selectedLender.processingFeeFlat}`}
+          </Text>
         </View>
       </View>
-    </View>
+
+      {/* Editable Custom Annual Interest Rate */}
+      <View style={styles.customRateBox}>
+        <SliderInput
+          label="Annual Interest Rate (% p.a.)"
+          value={annualRate}
+          onValueChange={setAnnualRate}
+          min={5.0}
+          max={24.0}
+          step={0.25}
+          suffix="%"
+          quickOptions={['8.75', '9.50', '10.50', '12.00']}
+          labelStyle={styles.inputFieldLabel}
+        />
+      </View>
+
+      {/* Loan Tenure Slider */}
+      <View style={{ marginTop: SPACING.md }}>
+        <SliderInput
+          label="Loan Tenure (Months)"
+          value={tenureMonths}
+          onValueChange={setTenureMonths}
+          min={selectedLender.minTenureMonths || 3}
+          max={selectedLender.maxTenureMonths || 36}
+          step={1}
+          suffix="Months"
+          quickOptions={['6', '12', '24', '36']}
+          labelStyle={styles.inputFieldLabel}
+        />
+      </View>
+    </SectionCard>
   );
 
-  // Right Column: Valuation, Eligible Loan & Repayment
+  // PRIMARY ACTION CTA
+  const renderCta = (
+    <GoldButton
+      title="See Loan Eligibility"
+      variant="primary"
+      disabled={!weight || Number(weight) <= 0}
+      onPress={handleCalculateAction}
+      style={isTablet ? styles.primaryActionButtonTablet : styles.primaryActionButton}
+    />
+  );
+
+  // Main Big Last Section: Estimated Maximum Loan Eligibility & Repayment
   const renderResults = (
-    <View>
-      <PearlCard goldTrim={true} style={styles.resultCard}>
-        {/* Estimated Intrinsic Gold Value */}
-        <View style={styles.valuationBox}>
-          <Text style={styles.valuationLabel}>Estimated Collateral Gold Value</Text>
-          <AnimatedNumber
-            value={result.valuation.assessedGoldValue}
-            isCurrency={true}
-            style={styles.valuationAmount}
-          />
-          <Text style={styles.valuationDisclaimerText}>
-            Intrinsic metal value before stone deductions or risk haircuts.
+    <PearlCard goldTrim={true} style={styles.resultCard}>
+      {/* Estimated Intrinsic Gold Value */}
+      <View style={styles.valuationBox}>
+        <Text style={styles.valuationLabel}>Estimated Collateral Gold Value</Text>
+        <AnimatedNumber
+          value={result.valuation.assessedGoldValue}
+          isCurrency={true}
+          style={styles.valuationAmount}
+        />
+        <Text style={styles.valuationDisclaimerText}>
+          Intrinsic bullion value of {result.collateral.eligibleNetWeightGrams}g net {result.collateral.purityLabel} gold.
+        </Text>
+      </View>
+
+      {/* Regulatory LTV Tier Badge */}
+      <View style={styles.tierContainer}>
+        <View style={styles.tierHeaderRow}>
+          <Text style={styles.tierTitle}>RBI Regulatory LTV Cap</Text>
+          <Text style={styles.tierPercentBadge}>{result.ltv.effectiveMaxLtvPercent}% Max LTV</Text>
+        </View>
+        <Text style={styles.tierDescription}>{result.ltv.appliedTier}</Text>
+        {result.ltv.isBulletMaturity && (
+          <Text style={styles.bulletRegulatoryNote}>
+            ℹ️ Under RBI bullet repayment directions, the LTV cap applies to the total amount payable at maturity (Principal + Accrued Interest).
+          </Text>
+        )}
+      </View>
+
+      {/* ESTIMATED MAXIMUM LOAN ELIGIBILITY (Hero Result) */}
+      <View style={styles.loanApprovalBox}>
+        <Text style={styles.loanApprovalLabel}>Estimated Maximum Loan Eligibility</Text>
+        <AnimatedNumber
+          value={result.loan.estimatedMaxLoanEligibility}
+          isCurrency={true}
+          style={styles.loanApprovalAmount}
+        />
+        <Text style={styles.actualLtvText}>
+          Regulatory ceiling: {result.ltv.effectiveMaxLtvPercent}% of collateral value
+        </Text>
+      </View>
+
+      {/* Separate Requested Amount vs Final Estimated Loan Amount */}
+      <View style={styles.comparisonBox}>
+        <View style={styles.comparisonRow}>
+          <Text style={styles.comparisonLabel}>Requested Loan Amount:</Text>
+          <Text style={styles.comparisonValue}>
+            {result.loan.isRequestedSpecified ? formatINR(result.loan.requestedLoanAmount) : 'Not specified (Max Eligible)'}
           </Text>
         </View>
-
-        {/* Regulatory LTV Tier Badge */}
-        <View style={styles.tierContainer}>
-          <View style={styles.tierHeaderRow}>
-            <Text style={styles.tierTitle}>RBI Regulatory LTV Cap</Text>
-            <Text style={styles.tierPercentBadge}>{result.ltv.effectiveMaxLtvPercent}% Max LTV</Text>
-          </View>
-          <Text style={styles.tierDescription}>{result.ltv.appliedTier}</Text>
-        </View>
-
-        {/* Requested Amount in Results (2.2) */}
-        <View style={styles.requestedAmountBox}>
-          <Text style={styles.requestedAmountLabel}>Requested Loan Amount</Text>
-          <Text style={styles.requestedAmountValue}>
-            {result.loan.requestedLoanAmount ? formatINR(result.loan.requestedLoanAmount) : 'Not specified (Max Eligible)'}
-          </Text>
-        </View>
-
-        {/* Separate Maximum Eligible Loan Limit (2.3) */}
-        <View style={styles.loanApprovalBox}>
-          <Text style={styles.loanApprovalLabel}>Maximum Eligible Loan Approval</Text>
-          <AnimatedNumber
-            value={result.loan.maxEligibleLoan}
-            isCurrency={true}
-            style={styles.loanApprovalAmount}
-          />
-          <Text style={styles.actualLtvText}>
-            Effective LTV: {result.ltv.effectiveApprovedLtvPercent}% of collateral value
-          </Text>
-        </View>
-
-        {/* Eligibility Shortfall Warning (2.3) */}
-        {result.loan.hasShortfall ? (
-          <View style={styles.shortfallCard}>
-            <Text style={styles.shortfallTitle}>⚠️ Loan Eligibility Shortfall</Text>
-            <Text style={styles.shortfallBody}>{result.loan.shortfallWarning}</Text>
-            <View style={styles.shortfallBadgeRow}>
-              <Text style={styles.shortfallBasisBadge}>{result.loan.calculationBasis}</Text>
-              <Text style={styles.shortfallAmountText}>
-                Shortfall: {formatINR(result.loan.shortfallAmount)}
-              </Text>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.basisNoticeBox}>
-            <Text style={styles.basisNoticeText}>ℹ️ {result.loan.calculationBasis}</Text>
+        {result.loan.isRequestedSpecified && (
+          <View style={styles.comparisonRow}>
+            <Text style={styles.comparisonLabel}>Requested Effective LTV:</Text>
+            <Text style={[styles.comparisonValue, result.loan.hasExceededEligibility && styles.warningText]}>
+              {result.ltv.requestedLtvPercent}% {result.loan.hasExceededEligibility ? '(Exceeds Cap)' : ''}
+            </Text>
           </View>
         )}
+        <View style={[styles.comparisonRow, styles.comparisonHighlightRow]}>
+          <Text style={styles.comparisonHighlightLabel}>Final Estimated Loan Amount Used:</Text>
+          <Text style={styles.comparisonHighlightValue}>
+            {formatINR(result.loan.finalEstimatedLoanAmount)}
+          </Text>
+        </View>
+        <Text style={styles.basisNoteText}>
+          {result.loan.calculationBasis}
+        </Text>
+      </View>
 
-        {/* Repayment Breakdown */}
-        <View style={styles.repaymentSummaryBox}>
-          {/* Prominently Show Rate Used (2.1) */}
-          <View style={[styles.summaryRow, styles.rateUsedRow]}>
-            <Text style={styles.rateUsedLabel}>Rate used:</Text>
-            <Text style={styles.rateUsedValue}>{result.loan.annualRate}% p.a.</Text>
-          </View>
-
-          {/* Rate used for selected purity (2.5) */}
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Rate used for {purity}:</Text>
-            <Text style={styles.summaryValue}>{formatINR(result.valuation.ratePerGramSelectedPurity)} / g</Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>
-              {repaymentMethod === 'emi' ? 'Monthly EMI' : repaymentMethod === 'bullet' ? 'Monthly Interest' : 'Periodic Payment'}
+      {/* Eligibility Capping Alert when Requested exceeds Eligibility */}
+      {result.loan.hasExceededEligibility && (
+        <View style={styles.shortfallCard}>
+          <Text style={styles.shortfallTitle}>⚠️ Capped at Regulatory Ceiling</Text>
+          <Text style={styles.shortfallBody}>{result.loan.cappingExplanation}</Text>
+          <View style={styles.shortfallBadgeRow}>
+            <Text style={styles.shortfallAmountText}>
+              Shortfall: {formatINR(result.loan.shortfallAmount)}
             </Text>
-            <Text style={styles.summaryValueGold}>{formatINR(result.loan.periodicPayment)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Interest ({tenureMonths} Months)</Text>
-            <Text style={styles.summaryValue}>{formatINR(result.loan.totalInterest)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Processing Fee</Text>
-            <Text style={styles.summaryValue}>{formatINR(result.loan.processingFeeAmount)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Net Disbursal</Text>
-            <Text style={styles.summaryValue}>{formatINR(result.loan.netDisbursalAmount)}</Text>
-          </View>
-          <View style={[styles.summaryRow, styles.summaryTotalRow]}>
-            <Text style={styles.summaryTotalLabel}>Total Repayment</Text>
-            <Text style={styles.summaryTotalValue}>{formatINR(result.loan.totalRepayment)}</Text>
+            {result.loan.additionalWeightNeededGrams > 0 && (
+              <Text style={styles.shortfallGoldNeededText}>
+                Need +{result.loan.additionalWeightNeededGrams}g of {result.collateral.purityLabel} gold
+              </Text>
+            )}
           </View>
         </View>
+      )}
 
-        <Text style={styles.approvalDisclaimer}>
-          {result.loan.approvalDisclaimer}
+      {/* Repayment Breakdown Table */}
+      <View style={styles.repaymentSummaryBox}>
+        <Text style={styles.repaymentTableTitle}>
+          Repayment Breakdown ({tenureMonths} Months • {repaymentMethod === 'emi' ? 'Regular EMI' : repaymentMethod === 'bullet' ? 'Monthly Interest' : 'Bullet Repayment'})
         </Text>
 
-        <GoldButton
-          title="Save Gold Loan"
-          variant="primary"
-          onPress={() => setSaveModalVisible(true)}
-          style={{ marginTop: SPACING.md }}
-        />
-      </PearlCard>
-
-      {/* Save Modal */}
-      <Modal
-        visible={saveModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setSaveModalVisible(false)}
-      >
-        <View style={styles.saveModalOverlay}>
-          <PearlCard style={styles.saveModalCard}>
-            <Text style={styles.saveModalTitle}>Save Gold Loan</Text>
-            <Text style={styles.saveModalSubtitle}>Label this calculation for quick recall in My History</Text>
-
-            <Input
-              label="Calculation Label"
-              value={saveLabel}
-              onChangeText={setSaveLabel}
-              placeholder="e.g. 50g 22K Wedding Jewellery"
-              style={{ marginVertical: SPACING.md }}
-            />
-
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-              <GoldButton
-                title="Cancel"
-                variant="secondary"
-                onPress={() => setSaveModalVisible(false)}
-                style={{ flex: 1 }}
-              />
-              <GoldButton
-                title="Save"
-                variant="primary"
-                onPress={handleSave}
-                loading={isSaving}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </PearlCard>
+        <View style={[styles.summaryRow, styles.rateUsedRow]}>
+          <Text style={styles.rateUsedLabel}>Interest Rate Applied:</Text>
+          <View style={styles.rateUsedValueCol}>
+            <Text style={styles.rateUsedValue}>{result.loan.annualRate}% p.a.</Text>
+            <Text style={styles.rateUsedLenderSubtext}>({selectedLender.name})</Text>
+          </View>
         </View>
-      </Modal>
-    </View>
+
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Benchmark Rate Used ({purity}):</Text>
+          <Text style={styles.summaryValue}>{formatINR(result.valuation.ratePerGramSelectedPurity)} / g</Text>
+        </View>
+
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>
+            {repaymentMethod === 'emi' ? 'Monthly EMI' : repaymentMethod === 'bullet' ? 'Monthly Interest' : 'Periodic Payment'}
+          </Text>
+          <Text style={styles.summaryValueGold}>
+            {repaymentMethod === 'maturity' ? '₹0.00 (All at maturity)' : formatINR(result.loan.periodicPayment)}
+          </Text>
+        </View>
+
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Total Interest ({tenureMonths} Months)</Text>
+          <Text style={styles.summaryValue}>{formatINR(result.loan.totalInterest)}</Text>
+        </View>
+
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Processing Fee (Upfront)</Text>
+          <Text style={styles.summaryValue}>{formatINR(result.loan.processingFeeAmount)}</Text>
+        </View>
+
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Estimated Net Disbursal</Text>
+          <Text style={styles.summaryValue}>{formatINR(result.loan.netDisbursalAmount)}</Text>
+        </View>
+
+        <View style={[styles.summaryRow, styles.summaryTotalRow]}>
+          <Text style={styles.summaryTotalLabel}>Total Repayment</Text>
+          <Text style={styles.summaryTotalValue}>{formatINR(result.loan.totalRepayment)}</Text>
+        </View>
+      </View>
+
+      <Text style={styles.approvalDisclaimer}>
+        {result.loan.disclaimer}
+      </Text>
+
+      <GoldButton
+        title="Save Gold Loan"
+        variant="primary"
+        onPress={() => setSaveModalVisible(true)}
+        style={{ marginTop: SPACING.md }}
+      />
+    </PearlCard>
   );
 
   const renderHeader = (
@@ -535,11 +861,106 @@ export function GoldLoanScreen({ navigation }) {
   return (
     <View style={styles.screen}>
       <Toast message={toastMessage} visible={Boolean(toastMessage)} />
-      <ResponsiveContainer
-        headerContent={renderHeader}
-        leftContent={renderInputs}
-        rightContent={renderResults}
-      />
+      <ResponsiveContainer headerContent={renderHeader}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.keyboardContainer}
+        >
+          {isTablet ? (
+            <View style={styles.tabletWrapper}>
+              {/* Row 1: 2 input sections beside each other */}
+              <View style={styles.tabletRow}>
+                <Animated.View style={[styles.tabletCol, { opacity: card1Anim, transform: [{ translateY: card1TranslateY }] }]}>
+                  {renderCard1}
+                </Animated.View>
+                <Animated.View style={[styles.tabletCol, { opacity: card2Anim, transform: [{ translateY: card2TranslateY }] }]}>
+                  {renderCard2}
+                </Animated.View>
+              </View>
+
+              {/* Row 2: 2 input sections beside each other */}
+              <View style={styles.tabletRow}>
+                <Animated.View style={[styles.tabletCol, { opacity: card3Anim, transform: [{ translateY: card3TranslateY }] }]}>
+                  {renderCard3}
+                </Animated.View>
+                <Animated.View style={[styles.tabletCol, { opacity: lenderAnim, transform: [{ translateY: lenderTranslateY }] }]}>
+                  {renderCard4}
+                </Animated.View>
+              </View>
+
+              {/* Primary CTA Centered */}
+              <Animated.View style={[styles.tabletCtaContainer, { opacity: ctaAnim, transform: [{ translateY: ctaTranslateY }] }]}>
+                {renderCta}
+              </Animated.View>
+
+              {/* Main Big Last Section Middle Aligned */}
+              <Animated.View style={[styles.tabletResultsContainer, { opacity: resultsAnim, transform: [{ translateY: resultsTranslateY }] }]}>
+                {renderResults}
+              </Animated.View>
+            </View>
+          ) : (
+            <View style={styles.phoneWrapper}>
+              <Animated.View style={[{ opacity: card1Anim, transform: [{ translateY: card1TranslateY }] }]}>
+                {renderCard1}
+              </Animated.View>
+              <Animated.View style={[{ opacity: card2Anim, transform: [{ translateY: card2TranslateY }] }]}>
+                {renderCard2}
+              </Animated.View>
+              <Animated.View style={[{ opacity: card3Anim, transform: [{ translateY: card3TranslateY }] }]}>
+                {renderCard3}
+              </Animated.View>
+              <Animated.View style={[{ opacity: lenderAnim, transform: [{ translateY: lenderTranslateY }] }]}>
+                {renderCard4}
+              </Animated.View>
+              <Animated.View style={[{ opacity: ctaAnim, transform: [{ translateY: ctaTranslateY }] }]}>
+                {renderCta}
+              </Animated.View>
+              <Animated.View style={[{ opacity: resultsAnim, transform: [{ translateY: resultsTranslateY }] }]}>
+                {renderResults}
+              </Animated.View>
+            </View>
+          )}
+        </KeyboardAvoidingView>
+
+        {/* Save Modal */}
+        <Modal
+          visible={saveModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setSaveModalVisible(false)}
+        >
+          <View style={styles.saveModalOverlay}>
+            <PearlCard style={styles.saveModalCard}>
+              <Text style={styles.saveModalTitle}>Save Gold Loan</Text>
+              <Text style={styles.saveModalSubtitle}>Label this calculation for quick recall in My History</Text>
+
+              <Input
+                label="Calculation Label"
+                value={saveLabel}
+                onChangeText={setSaveLabel}
+                placeholder="e.g. 50g 22K Wedding Jewellery"
+                style={{ marginVertical: SPACING.md }}
+              />
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                <GoldButton
+                  title="Cancel"
+                  variant="secondary"
+                  onPress={() => setSaveModalVisible(false)}
+                  style={{ flex: 1 }}
+                />
+                <GoldButton
+                  title="Save"
+                  variant="primary"
+                  onPress={handleSave}
+                  loading={isSaving}
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </PearlCard>
+          </View>
+        </Modal>
+      </ResponsiveContainer>
     </View>
   );
 }
@@ -549,41 +970,173 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background
   },
-  cardHeaderTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.md
+  keyboardContainer: {
+    width: '100%',
+    alignItems: 'center'
   },
-  pillToggleRow: {
+  tabletWrapper: {
+    width: '100%',
+    maxWidth: 1040,
+    alignSelf: 'center'
+  },
+  tabletRow: {
     flexDirection: 'row',
-    backgroundColor: COLORS.surfaceMuted,
-    borderRadius: RADII.md,
-    padding: 3,
+    gap: 18,
+    marginBottom: 18,
+    alignItems: 'stretch',
+    width: '100%'
+  },
+  tabletCol: {
+    flex: 1,
+    minWidth: 0
+  },
+  sectionCardTablet: {
+    flex: 1,
+    marginBottom: 0
+  },
+  card2ContentTablet: {
+    flex: 1,
+    justifyContent: 'space-between'
+  },
+  tabletCtaContainer: {
+    alignSelf: 'center',
+    width: 380,
+    maxWidth: '100%',
+    marginTop: 6,
+    marginBottom: 24
+  },
+  primaryActionButtonTablet: {
+    width: '100%'
+  },
+  tabletResultsContainer: {
+    width: '100%',
+    maxWidth: 860,
+    alignSelf: 'center'
+  },
+  phoneWrapper: {
+    width: '100%'
+  },
+  optionRow: {
+    flexDirection: 'row',
+    gap: 8,
     marginBottom: SPACING.md
   },
-  pillToggleBtn: {
-    flex: 1,
-    paddingVertical: 8,
+  inputFieldLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
+    letterSpacing: 0.1
+  },
+  whiteInputWrapper: {
+    marginBottom: 4
+  },
+  stoneDeductionBox: {
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight
+  },
+  stoneHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    borderRadius: RADII.sm
+    marginBottom: 2
   },
-  pillToggleBtnActive: {
-    backgroundColor: COLORS.surface,
-    elevation: 2
+  netWeightBadge: {
+    backgroundColor: COLORS.goldLightBg,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: RADII.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.35)'
   },
-  pillToggleText: {
-    fontSize: 12,
+  netWeightBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.goldDeep
+  },
+  quickChipRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 6
+  },
+  quickChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADII.sm,
+    backgroundColor: COLORS.surfaceMuted,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight
+  },
+  quickChipActive: {
+    backgroundColor: COLORS.goldLightBg,
+    borderColor: COLORS.goldMain
+  },
+  quickChipText: {
+    fontSize: 11,
     fontWeight: '600',
     color: COLORS.textSecondary
   },
-  pillToggleTextActive: {
+  quickChipTextActive: {
     color: COLORS.goldDeep,
-    fontWeight: '800'
+    fontWeight: '700'
+  },
+  stoneNoticeText: {
+    fontSize: 10.5,
+    color: COLORS.textMuted,
+    marginTop: 2
+  },
+  rateHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs
+  },
+  rateStatusProvenanceText: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    marginTop: -2
+  },
+  editRatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADII.sm,
+    backgroundColor: COLORS.goldLightBg,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.35)'
+  },
+  overrideToggleText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.goldDeep
+  },
+  resetRateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+    marginBottom: 4
+  },
+  resetRateLinkText: {
+    fontSize: 11,
+    color: COLORS.goldDeep,
+    fontWeight: '600',
+    textDecorationLine: 'underline'
+  },
+  rateNoticeText: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 4,
+    lineHeight: 15
   },
   collateralWarningBox: {
     backgroundColor: COLORS.errorLight,
-    padding: SPACING.md,
+    padding: SPACING.sm,
     borderRadius: RADII.md,
     borderWidth: 1,
     borderColor: COLORS.error,
@@ -595,186 +1148,127 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 16
   },
-  inputLabel: {
-    fontSize: 13,
+  inlineWarningBox: {
+    backgroundColor: COLORS.warningLight,
+    padding: SPACING.sm,
+    borderRadius: RADII.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.35)',
+    marginTop: 6
+  },
+  inlineWarningText: {
+    fontSize: 11,
+    color: COLORS.warning,
     fontWeight: '600',
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs
+    lineHeight: 15
   },
-  purityRow: {
+  primaryActionButton: {
+    marginBottom: SPACING.lg
+  },
+  simpleDropdownTrigger: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: SPACING.md
-  },
-  purityBtn: {
-    flex: 1,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     borderRadius: RADII.md,
-    backgroundColor: COLORS.surfaceMuted,
-    borderWidth: 1.5,
-    borderColor: COLORS.border
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 10,
+    marginBottom: SPACING.sm
   },
-  purityBtnActive: {
-    backgroundColor: COLORS.goldLightBg,
+  simpleDropdownTriggerActive: {
     borderColor: COLORS.goldMain
   },
-  purityBtnTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.textSecondary
+  simpleDropdownSelectedText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    flex: 1
   },
-  purityBtnTitleActive: {
-    color: COLORS.goldDeep
+  simpleDropdownMenu: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADII.md,
+    marginBottom: SPACING.md,
+    overflow: 'hidden'
   },
-  purityBtnSub: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 2
-  },
-  purityBtnSubActive: {
-    color: COLORS.goldDeep,
-    fontWeight: '700'
-  },
-  rateHeaderRow: {
+  simpleDropdownItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.xs
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 10
   },
-  overrideToggleText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.goldDeep
+  simpleDropdownItemBorder: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight
   },
-  pureWeightBadge: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.surfaceMuted,
-    padding: SPACING.md,
-    borderRadius: RADII.md,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    marginBottom: SPACING.md
+  simpleDropdownItemSelected: {
+    backgroundColor: COLORS.goldLightBg
   },
-  pureWeightLabel: {
+  simpleDropdownItemText: {
     fontSize: 13,
     color: COLORS.textSecondary,
     fontWeight: '500'
   },
-  pureWeightValue: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: COLORS.goldDeep
-  },
-  repaymentRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: SPACING.sm
-  },
-  repaymentBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-    borderRadius: RADII.md,
-    backgroundColor: COLORS.surfaceMuted,
-    borderWidth: 1.5,
-    borderColor: COLORS.border
-  },
-  repaymentBtnActive: {
-    backgroundColor: COLORS.goldLightBg,
-    borderColor: COLORS.goldMain
-  },
-  repaymentTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
-    textAlign: 'center'
-  },
-  repaymentTitleActive: {
-    color: COLORS.goldDeep
-  },
-  repaymentSub: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    marginTop: 2,
-    textAlign: 'center'
-  },
-  repaymentSubActive: {
-    color: COLORS.goldDeep
-  },
-  lenderSection: {
-    marginTop: SPACING.lg
-  },
-  sectionHeaderTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    marginBottom: 2
-  },
-  sectionSubtitle: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginBottom: SPACING.sm
-  },
-  lendersScroll: {
-    marginBottom: SPACING.md
-  },
-  lenderCard: {
-    width: 200,
-    padding: SPACING.md,
-    borderRadius: RADII.lg,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    marginRight: 10
-  },
-  lenderCardActive: {
-    borderColor: COLORS.goldMain,
-    backgroundColor: COLORS.goldLightBg
-  },
-  lenderBadgeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4
-  },
-  lenderCategory: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    textTransform: 'uppercase'
-  },
-  illustrativeBadge: {
-    backgroundColor: COLORS.surfaceMuted,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4
-  },
-  illustrativeBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: COLORS.textMuted
-  },
-  lenderName: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    marginBottom: 4
-  },
-  lenderRate: {
-    fontSize: 16,
-    fontWeight: '800',
+  simpleDropdownItemTextActive: {
     color: COLORS.goldDeep,
+    fontWeight: '700'
+  },
+  simpleDropdownItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  simpleDropdownItemRate: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontWeight: '600'
+  },
+  simpleDropdownItemRateActive: {
+    color: COLORS.goldDeep,
+    fontWeight: '700'
+  },
+  minimalInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: RADII.md,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    marginTop: 2
+  },
+  minimalInfoCol: {
+    flex: 1,
+    alignItems: 'center'
+  },
+  minimalInfoDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: COLORS.border
+  },
+  minimalInfoLabel: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.2,
     marginBottom: 2
   },
-  lenderTenure: {
-    fontSize: 11,
-    color: COLORS.textSecondary
+  minimalInfoValue: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: COLORS.textPrimary
   },
-  lenderFee: {
-    fontSize: 11,
-    color: COLORS.textMuted
+  minimalInfoValueGold: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: COLORS.goldDeep
+  },
+  customRateBox: {
+    marginTop: SPACING.md
   },
   resultCard: {
     padding: SPACING.lg
@@ -805,223 +1299,271 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: COLORS.textMuted,
     textAlign: 'center',
-    paddingHorizontal: SPACING.sm
+    paddingHorizontal: SPACING.md
   },
   tierContainer: {
     backgroundColor: COLORS.goldLightBg,
-    padding: SPACING.md,
     borderRadius: RADII.md,
     borderWidth: 1,
-    borderColor: COLORS.borderGold,
+    borderColor: 'rgba(212, 175, 55, 0.4)',
+    padding: SPACING.md,
     marginBottom: SPACING.md
   },
   tierHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    marginBottom: 2
   },
   tierTitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
-    color: COLORS.goldDeep,
-    textTransform: 'uppercase'
+    color: COLORS.textPrimary
   },
   tierPercentBadge: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: COLORS.goldDeep
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: RADII.sm,
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.goldDeep,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.4)'
   },
   tierDescription: {
-    fontSize: 12,
+    fontSize: 11,
     color: COLORS.textSecondary,
     marginTop: 2
+  },
+  bulletRegulatoryNote: {
+    fontSize: 10.5,
+    color: COLORS.goldDeep,
+    marginTop: 6,
+    lineHeight: 14
   },
   loanApprovalBox: {
     alignItems: 'center',
     paddingVertical: SPACING.lg,
-    backgroundColor: '#FFFFFF',
-    borderRadius: RADII.xl,
-    borderWidth: 2,
+    backgroundColor: COLORS.goldLightBg,
+    borderRadius: RADII.lg,
+    borderWidth: 1.5,
     borderColor: COLORS.goldMain,
-    marginBottom: SPACING.md,
-    elevation: 3
+    marginBottom: SPACING.md
   },
   loanApprovalLabel: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '800',
     color: COLORS.goldDeep,
     textTransform: 'uppercase',
-    letterSpacing: 0.5
+    letterSpacing: 0.6
   },
   loanApprovalAmount: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '900',
     color: COLORS.textPrimary,
     marginVertical: 4
   },
   actualLtvText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.success
+    fontSize: 11.5,
+    color: COLORS.textSecondary,
+    fontWeight: '600'
   },
-  repaymentSummaryBox: {
-    paddingVertical: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight
+  comparisonBox: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: RADII.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    padding: SPACING.md,
+    marginBottom: SPACING.md
   },
-  summaryRow: {
+  comparisonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 5
+    alignItems: 'center',
+    paddingVertical: 3
   },
-  summaryLabel: {
-    fontSize: 13,
-    color: COLORS.textSecondary
-  },
-  summaryValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.textPrimary
-  },
-  summaryValueGold: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: COLORS.goldDeep
-  },
-  summaryTotalRow: {
+  comparisonHighlightRow: {
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    marginTop: 4,
-    paddingTop: 8
+    paddingTop: 6,
+    marginTop: 4
   },
-  summaryTotalLabel: {
-    fontSize: 14,
-    fontWeight: '800',
+  comparisonLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary
+  },
+  comparisonValue: {
+    fontSize: 12,
+    fontWeight: '700',
     color: COLORS.textPrimary
   },
-  summaryTotalValue: {
-    fontSize: 16,
+  comparisonHighlightLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: COLORS.textPrimary
+  },
+  comparisonHighlightValue: {
+    fontSize: 13.5,
     fontWeight: '800',
     color: COLORS.goldDeep
   },
-  approvalDisclaimer: {
-    fontSize: 10,
+  basisNoteText: {
+    fontSize: 10.5,
     color: COLORS.textMuted,
-    lineHeight: 14,
-    marginTop: SPACING.sm,
-    textAlign: 'center'
+    marginTop: 4,
+    fontStyle: 'italic'
   },
-  rateNoticeText: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    fontStyle: 'italic',
-    marginBottom: SPACING.xs
-  },
-  customRateBox: {
-    marginTop: SPACING.md
-  },
-  requestedAmountBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: SPACING.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
-    marginBottom: SPACING.sm
-  },
-  requestedAmountLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textSecondary
-  },
-  requestedAmountValue: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: COLORS.textPrimary
+  warningText: {
+    color: COLORS.error
   },
   shortfallCard: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: COLORS.warningLight,
     padding: SPACING.md,
     borderRadius: RADII.md,
-    borderWidth: 1.5,
-    borderColor: COLORS.error,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.4)',
     marginBottom: SPACING.md
   },
   shortfallTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: COLORS.error,
+    color: COLORS.warning,
     marginBottom: 4
   },
   shortfallBody: {
-    fontSize: 11,
-    color: '#991B1B',
-    lineHeight: 16,
-    marginBottom: 6
+    fontSize: 11.5,
+    color: COLORS.textSecondary,
+    lineHeight: 16
   },
   shortfallBadgeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  shortfallBasisBadge: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.error,
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4
+    alignItems: 'center',
+    marginTop: 6
   },
   shortfallAmountText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '800',
-    color: COLORS.error
+    color: COLORS.warning
   },
-  basisNoticeBox: {
-    backgroundColor: COLORS.surfaceMuted,
-    padding: SPACING.sm,
-    borderRadius: RADII.sm,
+  shortfallGoldNeededText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textPrimary
+  },
+  repaymentSummaryBox: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADII.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.md,
     marginBottom: SPACING.md
   },
-  basisNoticeText: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    fontWeight: '600'
+  repaymentTableTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.sm,
+    letterSpacing: -0.1
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight
   },
   rateUsedRow: {
     backgroundColor: COLORS.goldLightBg,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderRadius: RADII.sm,
-    marginBottom: 6
+    borderBottomWidth: 0,
+    marginBottom: 6,
+    alignItems: 'center'
   },
   rateUsedLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.goldDeep,
+    flexShrink: 0
+  },
+  rateUsedValueCol: {
+    alignItems: 'flex-end',
+    flexShrink: 1,
+    marginLeft: 10
+  },
+  rateUsedValue: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: COLORS.goldDeep
+  },
+  rateUsedLenderSubtext: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: COLORS.goldDeep,
+    opacity: 0.9,
+    marginTop: 1.5,
+    textAlign: 'right'
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary
+  },
+  summaryValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textPrimary
+  },
+  summaryValueGold: {
     fontSize: 13,
     fontWeight: '800',
     color: COLORS.goldDeep
   },
-  rateUsedValue: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: COLORS.goldDeep
+  summaryTotalRow: {
+    borderBottomWidth: 0,
+    paddingTop: 8,
+    marginTop: 2
   },
-  saveModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: SPACING.xl
-  },
-  saveModalCard: {
-    padding: SPACING.xl
-  },
-  saveModalTitle: {
-    fontSize: 18,
+  summaryTotalLabel: {
+    fontSize: 13,
     fontWeight: '800',
     color: COLORS.textPrimary
   },
+  summaryTotalValue: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: COLORS.textPrimary
+  },
+  approvalDisclaimer: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    lineHeight: 14,
+    textAlign: 'center',
+    paddingHorizontal: SPACING.xs
+  },
+  saveModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.lg
+  },
+  saveModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    padding: SPACING.xl
+  },
+  saveModalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    marginBottom: 2
+  },
   saveModalSubtitle: {
     fontSize: 12,
-    color: COLORS.textMuted,
-    marginTop: 4
+    color: COLORS.textMuted
   }
 });

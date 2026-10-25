@@ -371,22 +371,12 @@ const styles = StyleSheet.create({
   avatarButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.goldLightBg,
-    borderWidth: 1.5,
-    borderColor: COLORS.goldMain,
     alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    shadowColor: '#111111',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 1
+    justifyContent: 'center'
   },
   avatarImage: {
-    width: 20,
-    height: 20
+    width: 28,
+    height: 28
   },
   headerSettingsBtn: {
     width: 34,

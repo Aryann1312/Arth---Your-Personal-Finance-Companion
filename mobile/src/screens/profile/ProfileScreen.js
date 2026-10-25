@@ -77,7 +77,7 @@ export function ProfileScreen({ navigation }) {
     <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
       {/* Profile Info Card */}
       <PearlCard goldTrim={true} style={styles.profileCard}>
-        <View style={styles.avatarCircle}>
+        <View style={styles.avatarContainer}>
           <Image
             source={profileAvatarImage}
             style={styles.avatarImage}
@@ -182,21 +182,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: SPACING.xl
   },
-  avatarCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: COLORS.goldLightBg,
-    borderWidth: 2,
-    borderColor: COLORS.goldMain,
+  avatarContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
     marginBottom: SPACING.md
   },
   avatarImage: {
-    width: 44,
-    height: 44
+    width: 72,
+    height: 72
   },
   userName: {
     fontSize: 20,

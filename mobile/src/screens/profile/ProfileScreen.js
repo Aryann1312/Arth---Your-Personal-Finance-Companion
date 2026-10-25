@@ -5,9 +5,11 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+
+const profileAvatarImage = require('../../../assets/profile-avatar.png');
 import { useAuth } from '../../context/AuthContext.js';
 import { PearlCard } from '../../components/PearlCard.js';
 import { GoldButton } from '../../components/GoldButton.js';
@@ -76,9 +78,11 @@ export function ProfileScreen({ navigation }) {
       {/* Profile Info Card */}
       <PearlCard goldTrim={true} style={styles.profileCard}>
         <View style={styles.avatarCircle}>
-          <Text style={styles.avatarInitials}>
-            {user?.name ? user.name.slice(0, 2).toUpperCase() : 'US'}
-          </Text>
+          <Image
+            source={profileAvatarImage}
+            style={styles.avatarImage}
+            resizeMode="contain"
+          />
         </View>
 
         <Text style={styles.userName}>{user?.name || 'Authorized User'}</Text>
@@ -187,12 +191,12 @@ const styles = StyleSheet.create({
     borderColor: COLORS.goldMain,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     marginBottom: SPACING.md
   },
-  avatarInitials: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: COLORS.goldDeep
+  avatarImage: {
+    width: 44,
+    height: 44
   },
   userName: {
     fontSize: 20,

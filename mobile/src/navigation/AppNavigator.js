@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Image } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -26,6 +26,8 @@ try {
 } catch (e) {
   // fallback if asset not resolved
 }
+
+const profileAvatarImage = require('../../assets/profile-avatar.png');
 
 // Screens
 import { LandingScreen } from '../screens/landing/LandingScreen.js';
@@ -61,9 +63,6 @@ const EMIStack = createNativeStackNavigator();
 
 // Unified Header Action Buttons (Profile Avatar)
 function HeaderRightActions({ navigation }) {
-  const { user } = useAuth();
-  const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : 'AR';
-
   return (
     <View style={styles.headerButtonsRow}>
       <TouchableOpacity
@@ -73,7 +72,11 @@ function HeaderRightActions({ navigation }) {
         accessibilityLabel="My Profile and Settings"
         activeOpacity={0.75}
       >
-        <Text style={styles.avatarText}>{initials}</Text>
+        <Image
+          source={profileAvatarImage}
+          style={styles.avatarImage}
+          resizeMode="contain"
+        />
       </TouchableOpacity>
     </View>
   );
@@ -374,16 +377,16 @@ const styles = StyleSheet.create({
     borderColor: COLORS.goldMain,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     shadowColor: '#111111',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 1
   },
-  avatarText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: COLORS.goldDeep
+  avatarImage: {
+    width: 20,
+    height: 20
   },
   headerSettingsBtn: {
     width: 34,

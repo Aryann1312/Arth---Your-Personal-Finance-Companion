@@ -506,10 +506,6 @@ export function EMIScreen({ navigation }) {
 
             {/* Pop-up Card Body */}
             <View style={styles.comingSoonBody}>
-              <View style={styles.comingSoonIconContainer}>
-                <Ionicons name="sparkles" size={26} color={COLORS.goldDeep} />
-              </View>
-
               <Text style={styles.comingSoonTitle}>This Feature is Coming Soon!</Text>
 
               <Text style={styles.comingSoonDesc}>
@@ -945,18 +941,8 @@ const styles = StyleSheet.create({
   },
   comingSoonBody: {
     alignItems: 'center',
-    paddingHorizontal: SPACING.xs
-  },
-  comingSoonIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FAF5EE',
-    borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.md
+    paddingHorizontal: SPACING.xs,
+    paddingTop: SPACING.xs
   },
   comingSoonTitle: {
     fontSize: 18,

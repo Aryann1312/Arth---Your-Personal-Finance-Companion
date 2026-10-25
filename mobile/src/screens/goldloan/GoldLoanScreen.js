@@ -1523,19 +1523,23 @@ const styles = StyleSheet.create({
     color: COLORS.goldDeep
   },
   summaryTotalRow: {
+    borderTopWidth: 1.5,
+    borderTopColor: COLORS.border,
     borderBottomWidth: 0,
-    paddingTop: 8,
-    marginTop: 2
+    paddingTop: 10,
+    marginTop: 4,
+    paddingBottom: 4
   },
   summaryTotalLabel: {
-    fontSize: 13,
+    fontSize: 15.5,
     fontWeight: '800',
-    color: COLORS.textPrimary
+    color: COLORS.textPrimary,
+    letterSpacing: -0.2
   },
   summaryTotalValue: {
-    fontSize: 14,
+    fontSize: 19,
     fontWeight: '900',
-    color: COLORS.textPrimary
+    color: COLORS.goldDeep
   },
   approvalDisclaimer: {
     fontSize: 10,

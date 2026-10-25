@@ -28,13 +28,15 @@ import { ResponsiveContainer } from '../../components/ResponsiveContainer.js';
 import { PageTitleBanner } from '../../components/PageTitleBanner.js';
 import { Toast } from '../../components/Toast.js';
 
-import { COLORS, RADII, SPACING, formatINR } from '../../theme/index.js';
+import { COLORS, RADII, SPACING, formatINR, useResponsiveLayout } from '../../theme/index.js';
 
 import { calculateEMI, generateAmortizationSchedule, exportAmortizationToCSV } from '../../lib/calc/emi.js';
 import { apiRequest } from '../../services/api.js';
 import { logger } from '../../services/eventLogger.js';
 
 export function EMIScreen({ navigation }) {
+  const { isTablet } = useResponsiveLayout();
+
   // Inputs
   const [principal, setPrincipal] = useState('500000');
   const [annualRate, setAnnualRate] = useState('10.0');
@@ -181,10 +183,10 @@ export function EMIScreen({ navigation }) {
     }
   };
 
-  // Left Column: Inputs & Controls
+  // Left Column / Card 1: Inputs & Controls
   const renderInputs = (
-    <View>
-      <PearlCard goldTrim={true}>
+    <View style={isTablet ? styles.tabletCard : styles.phoneCard}>
+      <PearlCard goldTrim={true} style={isTablet ? styles.tabletPearlCard : undefined}>
         <Text style={styles.cardHeaderTitle}>Loan Parameters</Text>
 
         <SliderInput
@@ -313,10 +315,10 @@ export function EMIScreen({ navigation }) {
     </View>
   );
 
-  // Right Column: Outputs, Donut Chart, and Actions
+  // Right Column / Card 2: Outputs, Donut Chart, and Actions
   const renderResults = (
-    <View>
-      <PearlCard goldTrim={true} style={styles.resultCard}>
+    <View style={isTablet ? styles.tabletCard : styles.phoneCard}>
+      <PearlCard goldTrim={true} style={[styles.resultCard, isTablet && styles.tabletPearlCard]}>
         <Text style={styles.cardHeaderTitle}>Calculated EMI Summary</Text>
 
         <View style={styles.mainEmiContainer}>
@@ -378,12 +380,14 @@ export function EMIScreen({ navigation }) {
             variant="secondary"
             onPress={() => setShowAmortizationModal(true)}
             style={{ flex: 1 }}
+            buttonStyle={{ flex: 1 }}
           />
           <GoldButton
             title="Export CSV"
             variant="dark"
             onPress={handleExportCSV}
             style={{ flex: 1 }}
+            buttonStyle={{ flex: 1 }}
           />
         </View>
 
@@ -495,11 +499,12 @@ export function EMIScreen({ navigation }) {
   return (
     <View style={styles.screen}>
       <Toast message={toastMessage} visible={Boolean(toastMessage)} />
-      <ResponsiveContainer
-        headerContent={renderHeader}
-        leftContent={renderInputs}
-        rightContent={renderResults}
-      />
+      <ResponsiveContainer headerContent={renderHeader}>
+        <View style={isTablet ? styles.tabletWrapper : styles.phoneWrapper}>
+          {renderInputs}
+          {renderResults}
+        </View>
+      </ResponsiveContainer>
     </View>
   );
 }
@@ -508,6 +513,26 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background
+  },
+  tabletWrapper: {
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+    alignItems: 'center'
+  },
+  tabletCard: {
+    width: '100%',
+    marginBottom: 24
+  },
+  tabletPearlCard: {
+    padding: SPACING.xl
+  },
+  phoneWrapper: {
+    width: '100%'
+  },
+  phoneCard: {
+    width: '100%',
+    marginBottom: 16
   },
   cardHeaderTitle: {
     fontSize: 18,
@@ -664,10 +689,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6
   },
   metricRowTotal: {
-    borderTopWidth: 1,
+    borderTopWidth: 1.5,
     borderTopColor: COLORS.border,
-    marginTop: 6,
-    paddingTop: 10
+    marginTop: 8,
+    paddingTop: 12,
+    paddingBottom: 4
   },
   metricLabel: {
     fontSize: 13,
@@ -679,13 +705,14 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary
   },
   metricLabelTotal: {
-    fontSize: 14,
+    fontSize: 15.5,
     fontWeight: '800',
-    color: COLORS.textPrimary
+    color: COLORS.textPrimary,
+    letterSpacing: -0.2
   },
   metricValueTotal: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 19,
+    fontWeight: '900',
     color: COLORS.goldDeep
   },
   actionButtonsRow: {
@@ -758,6 +785,9 @@ const styles = StyleSheet.create({
     padding: SPACING.xl
   },
   saveModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
     padding: SPACING.xl
   },
   saveModalTitle: {

@@ -10,6 +10,7 @@ import { useResponsiveLayout, SPACING } from '../theme/index.js';
 
 export function ResponsiveContainer({
   children,
+  headerContent,
   leftContent,
   rightContent,
   scrollable = true,
@@ -20,6 +21,31 @@ export function ResponsiveContainer({
 
   // If explicit leftContent and rightContent provided, use two-column structure
   if (leftContent && rightContent) {
+    if (!scrollable) {
+      if (isTablet) {
+        return (
+          <View style={[styles.container, { paddingHorizontal: horizontalPadding }, style]}>
+            {headerContent}
+            <View style={styles.twoColumnRow}>
+              <View style={styles.columnLeft}>{leftContent}</View>
+              <View style={styles.columnRight}>{rightContent}</View>
+            </View>
+          </View>
+        );
+      }
+
+      // Phone single column non-scrollable
+      return (
+        <View style={[styles.container, { paddingHorizontal: horizontalPadding }, style]}>
+          {headerContent}
+          <View style={styles.singleColumn}>
+            {leftContent}
+            {rightContent}
+          </View>
+        </View>
+      );
+    }
+
     if (isTablet) {
       return (
         <ScrollView
@@ -31,6 +57,7 @@ export function ResponsiveContainer({
           ]}
           showsVerticalScrollIndicator={false}
         >
+          {headerContent}
           <View style={styles.twoColumnRow}>
             <View style={styles.columnLeft}>{leftContent}</View>
             <View style={styles.columnRight}>{rightContent}</View>
@@ -50,6 +77,7 @@ export function ResponsiveContainer({
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {headerContent}
         <View style={styles.singleColumn}>
           {leftContent}
           {rightContent}
@@ -70,6 +98,7 @@ export function ResponsiveContainer({
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {headerContent}
         {children}
       </ScrollView>
     );
@@ -77,6 +106,7 @@ export function ResponsiveContainer({
 
   return (
     <View style={[styles.container, { paddingHorizontal: horizontalPadding }, style]}>
+      {headerContent}
       {children}
     </View>
   );

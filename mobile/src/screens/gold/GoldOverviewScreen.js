@@ -19,6 +19,7 @@ import { GoldButton } from '../../components/GoldButton.js';
 import { Skeleton } from '../../components/Skeleton.js';
 import { Toast } from '../../components/Toast.js';
 import { ResponsiveContainer } from '../../components/ResponsiveContainer.js';
+import { PageTitleBanner } from '../../components/PageTitleBanner.js';
 import { COLORS, RADII, SPACING, formatINR } from '../../theme/index.js';
 
 import { apiRequest } from '../../services/api.js';
@@ -157,9 +158,11 @@ export function GoldOverviewScreen({ navigation }) {
 
         <View style={styles.metaRow}>
           <Text style={styles.metaText}>
-            As of: {goldPrice?.asOfIST || 'Settlement close'}
+            <Text style={styles.metaBoldLabel}>As of: </Text>{goldPrice?.asOfIST || 'Settlement close'}
           </Text>
-          <Text style={styles.metaText}>Source: {goldPrice?.sourceName || 'World Gold Council & LBMA'}</Text>
+          <Text style={styles.metaText}>
+            <Text style={styles.metaBoldLabel}>Source: </Text>{goldPrice?.sourceName || 'World Gold Council & LBMA'}
+          </Text>
         </View>
 
         {goldPrice?.isStale && (
@@ -224,13 +227,19 @@ export function GoldOverviewScreen({ navigation }) {
           title="Compare Dates"
           variant="secondary"
           onPress={() => navigation.navigate('CompareDates')}
-          style={{ flex: 1 }}
+          style={styles.quickNavBtn}
+          buttonStyle={styles.quickNavBtnInner}
+          textStyle={styles.quickNavBtnText}
+          numberOfLines={1}
         />
         <GoldButton
           title="Data Methodology"
           variant="secondary"
           onPress={() => navigation.navigate('DataSourceInfo')}
-          style={{ flex: 1 }}
+          style={styles.quickNavBtn}
+          buttonStyle={styles.quickNavBtnInner}
+          textStyle={styles.quickNavBtnText}
+          numberOfLines={1}
         />
       </View>
     </View>
@@ -243,9 +252,22 @@ export function GoldOverviewScreen({ navigation }) {
         <View style={styles.chartHeader}>
           <Text style={styles.chartTitle}>Historical Performance ({selectedPurity})</Text>
           {historyStats && (
-            <Text style={[styles.changeText, { color: historyStats.isPositive ? COLORS.success : COLORS.error }]}>
-              {historyStats.isPositive ? '+' : ''}{historyStats.percentageChange}% ({formatINR(historyStats.absoluteChange)})
-            </Text>
+            <View
+              style={[
+                styles.changeBadge,
+                { backgroundColor: historyStats.isPositive ? COLORS.successLight : COLORS.errorLight }
+              ]}
+            >
+              <Text
+                style={[
+                  styles.changeText,
+                  { color: historyStats.isPositive ? COLORS.success : COLORS.error }
+                ]}
+                numberOfLines={1}
+              >
+                {historyStats.isPositive ? '+' : ''}{historyStats.percentageChange}% ({formatINR(historyStats.absoluteChange)})
+              </Text>
+            </View>
           )}
         </View>
 
@@ -291,6 +313,13 @@ export function GoldOverviewScreen({ navigation }) {
     </View>
   );
 
+  const renderHeader = (
+    <PageTitleBanner
+      title="GOLD RATE"
+      description={`Live Spot benchmarks, retail estimates, and\n5-years historical market trends`}
+    />
+  );
+
   return (
     <ScrollView
       style={styles.screen}
@@ -298,6 +327,7 @@ export function GoldOverviewScreen({ navigation }) {
     >
       <Toast message={error} type="error" visible={Boolean(error)} />
       <ResponsiveContainer
+        headerContent={renderHeader}
         leftContent={renderLeftColumn}
         rightContent={renderRightColumn}
         scrollable={false}
@@ -363,12 +393,14 @@ const styles = StyleSheet.create({
   },
   row18k: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 6,
     paddingVertical: SPACING.xs,
     borderTopWidth: 1,
     borderTopColor: COLORS.borderLight,
-    marginTop: 4
+    marginTop: 6
   },
   price18kText: {
     fontSize: 13,
@@ -440,16 +472,20 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted
   },
   metaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: COLORS.borderLight,
-    paddingTop: SPACING.sm,
-    marginTop: SPACING.md
+    paddingTop: 10,
+    marginTop: 14,
+    gap: 4
+  },
+  metaBoldLabel: {
+    fontWeight: '700',
+    color: '#6B665C'
   },
   metaText: {
     fontSize: 11,
-    color: COLORS.textMuted
+    color: COLORS.textMuted,
+    lineHeight: 16
   },
   staleAlertBox: {
     backgroundColor: COLORS.warningLight,
@@ -495,22 +531,45 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: SPACING.md
   },
+  quickNavBtn: {
+    flex: 1
+  },
+  quickNavBtnInner: {
+    paddingHorizontal: 8,
+    minHeight: 46,
+    height: 46
+  },
+  quickNavBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center'
+  },
   chartCard: {
-    padding: SPACING.lg
+    padding: SPACING.lg,
+    overflow: 'hidden'
   },
   chartHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
     marginBottom: SPACING.sm
   },
   chartTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    color: COLORS.textPrimary
+    color: COLORS.textPrimary,
+    flexShrink: 1
+  },
+  changeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADII.sm,
+    alignSelf: 'flex-start'
   },
   changeText: {
-    fontSize: 14,
+    fontSize: 12.5,
     fontWeight: '800'
   },
   statsGrid: {

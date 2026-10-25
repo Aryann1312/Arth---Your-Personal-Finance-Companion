@@ -5,14 +5,25 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import * as Font from 'expo-font';
 
 import { useAuth } from '../context/AuthContext.js';
 import { COLORS, RADII } from '../theme/index.js';
 import { IntroScreen } from '../screens/intro/IntroScreen.js';
+import { AppLogo } from '../components/AppLogo.js';
+import { MarketTrendIcon, LoanPeakIcon, EMIPieIcon } from '../components/TabIcons.js';
+
+// Safe local asset reference for Yeseva One font
+let localYesevaFont = null;
+try {
+  localYesevaFont = require('../../assets/fonts/YesevaOne_400Regular.ttf');
+} catch (e) {
+  // fallback if asset not resolved
+}
 
 // Screens
 import { LandingScreen } from '../screens/landing/LandingScreen.js';
@@ -71,6 +82,44 @@ function HeaderProfileButton({ navigation }) {
   );
 }
 
+// Brand Header Title: App logo without background circle + app name "Arth"
+function HeaderBrandTitle() {
+  const [fontLoaded, setFontLoaded] = useState(() => {
+    try {
+      return Font.isLoaded('YesevaOne_400Regular');
+    } catch {
+      return false;
+    }
+  });
+
+  React.useEffect(() => {
+    if (!fontLoaded && localYesevaFont) {
+      Font.loadAsync({ YesevaOne_400Regular: localYesevaFont })
+        .then(() => setFontLoaded(true))
+        .catch(() => {});
+    }
+  }, [fontLoaded]);
+
+  return (
+    <View style={styles.headerBrandRow}>
+      <AppLogo size={26} variant="gold" />
+      <Text
+        allowFontScaling={false}
+        style={[
+          styles.headerBrandText,
+          {
+            fontFamily: fontLoaded
+              ? 'YesevaOne_400Regular'
+              : (Platform.OS === 'ios' ? 'Georgia' : 'serif')
+          }
+        ]}
+      >
+        Arth
+      </Text>
+    </View>
+  );
+}
+
 // Module A Stack
 function GoldNavigator({ navigation }) {
   return (
@@ -79,7 +128,7 @@ function GoldNavigator({ navigation }) {
         name="GoldOverview"
         component={GoldOverviewScreen}
         options={{
-          title: 'Gold Price Tracker',
+          headerTitle: () => <HeaderBrandTitle />,
           headerRight: () => <HeaderProfileButton navigation={navigation} />
         }}
       />
@@ -97,7 +146,7 @@ function GoldLoanNavigator({ navigation }) {
         name="GoldLoanMain"
         component={GoldLoanScreen}
         options={{
-          title: 'Gold Loan Calculator',
+          headerTitle: () => <HeaderBrandTitle />,
           headerRight: () => (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity onPress={() => navigation.navigate('SavedGoldLoans')} style={{ marginRight: 12 }}>
@@ -121,7 +170,7 @@ function EMINavigator({ navigation }) {
         name="EMIMain"
         component={EMIScreen}
         options={{
-          title: 'EMI Calculator',
+          headerTitle: () => <HeaderBrandTitle />,
           headerRight: () => (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity onPress={() => navigation.navigate('SavedEMI')} style={{ marginRight: 12 }}>
@@ -154,7 +203,7 @@ function MainTabs() {
         component={GoldNavigator}
         options={{
           tabBarLabel: 'Gold Rates',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🪙</Text>
+          tabBarIcon: ({ color }) => <MarketTrendIcon color={color} size={22} />
         }}
       />
       <Tab.Screen
@@ -162,7 +211,7 @@ function MainTabs() {
         component={GoldLoanNavigator}
         options={{
           tabBarLabel: 'Gold Loan',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>⚖️</Text>
+          tabBarIcon: ({ color }) => <LoanPeakIcon color={color} size={22} />
         }}
       />
       <Tab.Screen
@@ -170,7 +219,7 @@ function MainTabs() {
         component={EMINavigator}
         options={{
           tabBarLabel: 'EMI Calc',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🧮</Text>
+          tabBarIcon: ({ color }) => <EMIPieIcon color={color} size={22} />
         }}
       />
     </Tab.Navigator>
@@ -269,6 +318,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10
+  },
+  headerBrandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  headerBrandText: {
+    fontSize: 21,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    letterSpacing: 0.3
   },
   headerHistoryBtn: {
     paddingHorizontal: 8,

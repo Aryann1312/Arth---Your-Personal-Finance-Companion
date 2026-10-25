@@ -19,12 +19,20 @@ export function MiniGoldChart({
   showRangeSelector = true
 }) {
   const { width } = useWindowDimensions();
-  const chartWidth = Math.min(width - 48, 600);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const chartWidth = containerWidth > 0 ? containerWidth : Math.min(width - 64, 600);
   const chartHeight = height;
   const paddingBottom = 25;
   const paddingTop = 20;
 
   const [activeIndex, setActiveIndex] = useState(null);
+
+  const handleLayout = (e) => {
+    const layoutWidth = e.nativeEvent?.layout?.width;
+    if (layoutWidth > 0 && Math.round(layoutWidth) !== Math.round(containerWidth)) {
+      setContainerWidth(layoutWidth);
+    }
+  };
 
   if (!records || records.length === 0) {
     return (
@@ -69,28 +77,32 @@ export function MiniGoldChart({
   const ranges = ['1M', '3M', '6M', '1Y', '3Y', '5Y'];
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={handleLayout}>
       {/* Header with active price tooltip */}
       <View style={styles.tooltipHeader}>
-        <View>
+        <View style={styles.activePriceBox}>
           <Text style={styles.activePrice}>{formatINR(activePoint.record.price)}</Text>
-          <Text style={styles.activeDate}>
+          <Text style={styles.activeDate} numberOfLines={1}>
             Settlement: {activePoint.record.date || activePoint.record.observationDate} ({purity}/g)
           </Text>
         </View>
 
         <View style={styles.statBadgesRow}>
           <View style={styles.statBadgeHigh}>
-            <Text style={styles.statBadgeTextHigh}>H: {formatINR(maxPrice)}</Text>
+            <Text style={styles.statBadgeTextHigh} numberOfLines={1}>
+              H: {formatINR(maxPrice)}
+            </Text>
           </View>
           <View style={styles.statBadgeLow}>
-            <Text style={styles.statBadgeTextLow}>L: {formatINR(minPrice)}</Text>
+            <Text style={styles.statBadgeTextLow} numberOfLines={1}>
+              L: {formatINR(minPrice)}
+            </Text>
           </View>
         </View>
       </View>
 
       {/* SVG Chart Surface */}
-      <View style={{ width: chartWidth, height: chartHeight }}>
+      <View style={{ width: chartWidth, height: chartHeight, overflow: 'hidden' }}>
         <Svg width={chartWidth} height={chartHeight}>
           <Defs>
             <LinearGradient id="goldAreaGrad" x1="0" y1="0" x2="0" y2="1">
@@ -150,48 +162,61 @@ export function MiniGoldChart({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: SPACING.sm
+    marginVertical: SPACING.sm,
+    width: '100%',
+    overflow: 'hidden'
   },
   tooltipHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 8,
     marginBottom: SPACING.xs
   },
+  activePriceBox: {
+    flexShrink: 1,
+    minWidth: 120
+  },
   activePrice: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
-    color: COLORS.textPrimary
+    color: COLORS.textPrimary,
+    letterSpacing: -0.2
   },
   activeDate: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: COLORS.textMuted,
     fontWeight: '500',
     marginTop: 2
   },
   statBadgesRow: {
     flexDirection: 'row',
-    gap: 6
+    alignItems: 'center',
+    gap: 5,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    maxWidth: 200
   },
   statBadgeHigh: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
     borderRadius: RADII.sm,
     backgroundColor: COLORS.successLight
   },
   statBadgeTextHigh: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: COLORS.success
   },
   statBadgeLow: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
     borderRadius: RADII.sm,
     backgroundColor: COLORS.errorLight
   },
   statBadgeTextLow: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: COLORS.error
   },

@@ -25,6 +25,7 @@ import { GoldButton } from '../../components/GoldButton.js';
 import { DonutChart } from '../../components/DonutChart.js';
 import { AnimatedNumber } from '../../components/AnimatedNumber.js';
 import { ResponsiveContainer } from '../../components/ResponsiveContainer.js';
+import { PageTitleBanner } from '../../components/PageTitleBanner.js';
 import { Toast } from '../../components/Toast.js';
 
 import { COLORS, RADII, SPACING, formatINR } from '../../theme/index.js';
@@ -484,10 +485,18 @@ export function EMIScreen({ navigation }) {
     </View>
   );
 
+  const renderHeader = (
+    <PageTitleBanner
+      title="EMI CALCULATOR"
+      description={`Plan monthly installments, interest amortization,\nand total repayment clarity`}
+    />
+  );
+
   return (
     <View style={styles.screen}>
       <Toast message={toastMessage} visible={Boolean(toastMessage)} />
       <ResponsiveContainer
+        headerContent={renderHeader}
         leftContent={renderInputs}
         rightContent={renderResults}
       />

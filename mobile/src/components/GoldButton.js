@@ -24,7 +24,9 @@ export function GoldButton({
   disabled = false,
   icon,
   style,
-  textStyle
+  buttonStyle,
+  textStyle,
+  numberOfLines
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -71,14 +73,14 @@ export function GoldButton({
             colors={disabled ? ['#D1CCC0', '#E5E0D5'] : COLORS.goldButtonGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={[styles.button, styles.primaryShadow]}
+            style={[styles.button, styles.primaryShadow, buttonStyle]}
           >
             {loading ? (
               <ActivityIndicator color="#111111" size="small" />
             ) : (
               <>
                 {icon}
-                <Text style={[styles.primaryText, textStyle]}>{title}</Text>
+                <Text style={[styles.primaryText, textStyle]} numberOfLines={numberOfLines}>{title}</Text>
               </>
             )}
           </LinearGradient>
@@ -97,14 +99,14 @@ export function GoldButton({
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
           disabled={disabled || loading}
-          style={[styles.button, styles.darkButton]}
+          style={[styles.button, styles.darkButton, buttonStyle]}
         >
           {loading ? (
             <ActivityIndicator color="#FFD700" size="small" />
           ) : (
             <>
               {icon}
-              <Text style={[styles.darkText, textStyle]}>{title}</Text>
+              <Text style={[styles.darkText, textStyle]} numberOfLines={numberOfLines}>{title}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -121,14 +123,14 @@ export function GoldButton({
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         disabled={disabled || loading}
-        style={[styles.button, styles.secondaryButton, variant === 'outline' && styles.outlineButton]}
+        style={[styles.button, styles.secondaryButton, variant === 'outline' && styles.outlineButton, buttonStyle]}
       >
         {loading ? (
           <ActivityIndicator color={COLORS.goldDeep} size="small" />
         ) : (
           <>
             {icon}
-            <Text style={[styles.secondaryText, textStyle]}>{title}</Text>
+            <Text style={[styles.secondaryText, textStyle]} numberOfLines={numberOfLines}>{title}</Text>
           </>
         )}
       </TouchableOpacity>

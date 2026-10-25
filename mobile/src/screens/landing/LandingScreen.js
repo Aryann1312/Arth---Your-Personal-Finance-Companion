@@ -206,7 +206,7 @@ export function LandingScreen({ navigation }) {
                   Basis: {goldPrice?.basisLabel || 'Indicative benchmark, before duty and GST'}
                 </Text>
                 <Text style={styles.tickerDisclaimer}>
-                  Source: {goldPrice?.sourceName || 'World Gold Council (Goldhub) & LBMA with RBI reference rates'} • As of: {goldPrice?.asOfIST || 'Daily Market Settlement'}
+                  Source: {goldPrice?.sourceName || 'World Gold Council & LBMA with RBI reference rates'} • As of: {goldPrice?.asOfIST || 'Daily Market Settlement'}
                 </Text>
               </View>
             </View>

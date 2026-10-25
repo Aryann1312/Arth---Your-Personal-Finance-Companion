@@ -6,6 +6,7 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../../context/AuthContext.js';
 import { PearlCard } from '../../components/PearlCard.js';
 import { Input } from '../../components/Input.js';
@@ -14,6 +15,20 @@ import { GoldGradientText } from '../../components/GoldGradientText.js';
 import { Toast } from '../../components/Toast.js';
 import { AppLogo } from '../../components/AppLogo.js';
 import { COLORS, RADII, SPACING, useResponsiveLayout } from '../../theme/index.js';
+
+function ChevronLeftIcon({ color = '#2B2823', size = 18 }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M15 18L9 12L15 6"
+        stroke={color}
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
 
 export function LoginScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -28,6 +43,14 @@ export function LoginScreen({ navigation }) {
 
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
+
+  const handleGoBack = () => {
+    if (navigation?.canGoBack && navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('Landing');
+    }
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
@@ -54,12 +77,34 @@ export function LoginScreen({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.keyboardContainer}
     >
+      {/* Top Left Go Back Button */}
+      <View
+        style={[
+          styles.topBar,
+          {
+            paddingTop: insets.top + 6,
+            paddingHorizontal: horizontalPadding
+          }
+        ]}
+      >
+        <TouchableOpacity
+          onPress={handleGoBack}
+          activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          style={styles.goBackButton}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <ChevronLeftIcon size={18} color="#2B2823" />
+          <Text style={styles.goBackText}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           {
             paddingHorizontal: horizontalPadding,
-            paddingTop: insets.top,
             paddingBottom: Math.max(insets.bottom, SPACING.md)
           }
         ]}
@@ -139,10 +184,6 @@ export function LoginScreen({ navigation }) {
               <Text style={styles.footerLink}>Create Account</Text>
             </TouchableOpacity>
           </View>
-
-          <TouchableOpacity onPress={() => navigation.navigate('Landing')} style={styles.backHomeBtn}>
-            <Text style={styles.backHomeText}>← Back to Explorer</Text>
-          </TouchableOpacity>
         </View>
       </View>
     </ScrollView>
@@ -154,6 +195,26 @@ const styles = StyleSheet.create({
   keyboardContainer: {
     flex: 1,
     backgroundColor: COLORS.background
+  },
+  topBar: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    zIndex: 10
+  },
+  goBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 8,
+    paddingRight: 14
+  },
+  goBackText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2B2823',
+    letterSpacing: -0.2
   },
   scrollContent: {
     flexGrow: 1
@@ -253,14 +314,5 @@ const styles = StyleSheet.create({
     color: COLORS.goldDeep,
     fontWeight: '700',
     fontSize: 14
-  },
-  backHomeBtn: {
-    marginTop: SPACING.lg,
-    alignSelf: 'center'
-  },
-  backHomeText: {
-    color: COLORS.textMuted,
-    fontSize: 13,
-    fontWeight: '600'
   }
 });

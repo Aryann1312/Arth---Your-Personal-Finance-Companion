@@ -129,8 +129,8 @@ export function HamburgerButton({
 const styles = StyleSheet.create({
   button: {
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
+    borderWidth: 0.75,
+    borderColor: '#D1D5DB',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

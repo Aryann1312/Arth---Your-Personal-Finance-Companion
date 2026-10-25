@@ -148,8 +148,8 @@ const styles = StyleSheet.create({
   container: {
     height: 44,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#1A1A1A',
+    borderWidth: 0.75,
+    borderColor: '#D1D5DB',
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -158,17 +158,17 @@ const styles = StyleSheet.create({
       ios: {
         shadowColor: '#1A1A1A',
         shadowOffset: { width: 0, height: 1.5 },
-        shadowOpacity: 0.07,
-        shadowRadius: 4
+        shadowOpacity: 0.05,
+        shadowRadius: 3
       },
       android: {
-        elevation: 2
+        elevation: 1.5
       },
       default: {
         shadowColor: '#1A1A1A',
         shadowOffset: { width: 0, height: 1.5 },
-        shadowOpacity: 0.07,
-        shadowRadius: 4
+        shadowOpacity: 0.05,
+        shadowRadius: 3
       }
     })
   },
@@ -195,9 +195,9 @@ const styles = StyleSheet.create({
     height: '100%'
   },
   verticalDivider: {
-    width: 1,
+    width: 0.75,
     height: 22,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#D1D5DB',
     marginRight: 6
   },
   linksRow: {

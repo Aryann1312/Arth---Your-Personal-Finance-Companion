@@ -12,10 +12,9 @@ import {
   TouchableOpacity,
   FlatList,
   Modal,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -32,7 +31,7 @@ import { Toast } from '../../components/Toast.js';
 
 import { COLORS, RADII, SPACING, formatINR, useResponsiveLayout } from '../../theme/index.js';
 
-import { calculateEMI, generateAmortizationSchedule, exportAmortizationToCSV } from '../../lib/calc/emi.js';
+import { calculateEMI, generateAmortizationSchedule } from '../../lib/calc/emi.js';
 import { apiRequest } from '../../services/api.js';
 import { logger } from '../../services/eventLogger.js';
 
@@ -56,6 +55,7 @@ export function EMIScreen({ navigation }) {
 
   // UI state
   const [showAmortizationModal, setShowAmortizationModal] = useState(false);
+  const [showComingSoonModal, setShowComingSoonModal] = useState(false);
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [saveLabel, setSaveLabel] = useState('Home Loan 5L');
   const [toastMessage, setToastMessage] = useState('');
@@ -116,34 +116,19 @@ export function EMIScreen({ navigation }) {
     });
   }, [principal, annualRate, tenureMonths, extraMonthlyPayment, lumpSumAmount]);
 
-  // CSV Export
-  const handleExportCSV = async () => {
+  // CSV Export - Displays Coming Soon popup
+  const handleExportCSV = () => {
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const csvString = exportAmortizationToCSV(calculationResult.amortization.schedule);
-      const fileUri = `${FileSystem.documentDirectory}Amortization_Schedule_${Date.now()}.csv`;
-
-      await FileSystem.writeAsStringAsync(fileUri, csvString, { encoding: FileSystem.EncodingType.UTF8 });
-
-      logger.logAction({
-        module: 'emi',
-        action: 'export_csv',
-        screen: 'EMIScreen',
-        resultSummary: { rowsExported: calculationResult.amortization.schedule.length }
-      });
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'text/csv',
-          dialogTitle: 'Download Amortization Schedule CSV',
-          UTI: 'public.comma-separated-values-text'
-        });
-      } else {
-        Alert.alert('Export Complete', `File saved to: ${fileUri}`);
-      }
-    } catch (err) {
-      Alert.alert('Export Error', err.message);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {
+      // Haptics fallback
     }
+    setShowComingSoonModal(true);
+    logger.logAction({
+      module: 'emi',
+      action: 'click_export_csv',
+      screen: 'EMIScreen'
+    });
   };
 
   // Save calculation to backend
@@ -487,6 +472,59 @@ export function EMIScreen({ navigation }) {
             </View>
           </PearlCard>
         </View>
+      </Modal>
+
+      {/* Feature Coming Soon Pop-up Card */}
+      <Modal
+        visible={showComingSoonModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowComingSoonModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.comingSoonOverlay}
+          activeOpacity={1}
+          onPress={() => setShowComingSoonModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.comingSoonCard}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Top-left cross closing button */}
+            <View style={styles.comingSoonHeaderRow}>
+              <TouchableOpacity
+                onPress={() => setShowComingSoonModal(false)}
+                style={styles.comingSoonCloseBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={20} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Pop-up Card Body */}
+            <View style={styles.comingSoonBody}>
+              <View style={styles.comingSoonIconContainer}>
+                <Ionicons name="sparkles" size={26} color={COLORS.goldDeep} />
+              </View>
+
+              <Text style={styles.comingSoonTitle}>This Feature is Coming Soon!</Text>
+
+              <Text style={styles.comingSoonDesc}>
+                Exporting Amortization Schedules to CSV is currently under active development. Stay tuned for upcoming updates!
+              </Text>
+
+              <GoldButton
+                title="Got it"
+                variant="primary"
+                onPress={() => setShowComingSoonModal(false)}
+                style={styles.comingSoonActionBtn}
+              />
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
@@ -854,5 +892,88 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textMuted,
     marginTop: 4
+  },
+  comingSoonOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xl
+  },
+  comingSoonCard: {
+    width: '100%',
+    maxWidth: 350,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: SPACING.lg,
+    borderWidth: 0.75,
+    borderColor: '#E5E7EB',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#1A1A1A',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12
+      },
+      android: {
+        elevation: 6
+      },
+      default: {
+        shadowColor: '#1A1A1A',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12
+      }
+    })
+  },
+  comingSoonHeaderRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    marginBottom: SPACING.xs
+  },
+  comingSoonCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 0.75,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  comingSoonBody: {
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xs
+  },
+  comingSoonIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FAF5EE',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.md
+  },
+  comingSoonTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111111',
+    textAlign: 'center',
+    marginBottom: 8,
+    letterSpacing: 0.2
+  },
+  comingSoonDesc: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: SPACING.lg
+  },
+  comingSoonActionBtn: {
+    width: '100%'
   }
 });

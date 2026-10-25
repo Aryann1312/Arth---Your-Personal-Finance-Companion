@@ -5,17 +5,19 @@
  * and Aryan Desale team profile.
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Dimensions,
+  useWindowDimensions,
   PanResponder,
   Platform,
-  ScrollView
+  ScrollView,
+  Modal,
+  Easing
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Font from 'expo-font';
@@ -25,9 +27,6 @@ import { DrawerItem } from './DrawerItem.js';
 import { TeamCard } from './TeamCard.js';
 import { DRAWER_MENU_ITEMS } from './drawerConfig.js';
 import { COLORS, RADII, SPACING } from '../../theme/index.js';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const PANEL_WIDTH = Math.min(Math.round(SCREEN_WIDTH * 0.8), 320);
 
 // Safe local Yeseva One font
 let localYesevaFont = null;
@@ -44,7 +43,10 @@ export function SideDrawer({
   navigation
 }) {
   const insets = useSafeAreaInsets();
-  const [fontLoaded, setFontLoaded] = React.useState(() => {
+  const { width: windowWidth } = useWindowDimensions();
+  const panelWidth = Math.min(Math.round(windowWidth * 0.8), 320);
+
+  const [fontLoaded, setFontLoaded] = useState(() => {
     try {
       return Font.isLoaded('YesevaOne_400Regular');
     } catch {
@@ -52,13 +54,26 @@ export function SideDrawer({
     }
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!fontLoaded && localYesevaFont) {
       Font.loadAsync({ YesevaOne_400Regular: localYesevaFont })
         .then(() => setFontLoaded(true))
         .catch(() => {});
     }
   }, [fontLoaded]);
+
+  // Entrance animation runs immediately when Modal mounts
+  useEffect(() => {
+    if (isOpen && animValue) {
+      animValue.setValue(0);
+      Animated.timing(animValue, {
+        toValue: 1,
+        duration: 300,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true
+      }).start();
+    }
+  }, [isOpen, animValue]);
 
   // Swipe right on panel to close
   const panResponder = useMemo(
@@ -79,7 +94,7 @@ export function SideDrawer({
   // Animations driven by shared animValue (0 -> 1)
   const panelTranslateX = animValue.interpolate({
     inputRange: [0, 1],
-    outputRange: [PANEL_WIDTH + 20, 0]
+    outputRange: [panelWidth + 40, 0]
   });
 
   const backdropOpacity = animValue.interpolate({
@@ -109,7 +124,6 @@ export function SideDrawer({
 
   const handleItemPress = (item) => {
     if (onClose) {
-      // Close drawer with smooth animation, then navigate
       onClose(() => {
         if (navigation && item.target) {
           navigation.navigate(item.target, {
@@ -126,116 +140,124 @@ export function SideDrawer({
     }
   };
 
-  if (!isOpen) {
-    return null;
-  }
+  const navHeaderHeight = Platform.OS === 'ios' ? 44 : 56;
+  const floatingButtonTop = insets.top + navHeaderHeight + 4;
 
   return (
-    <View style={styles.absoluteOverlay} pointerEvents={isOpen ? 'auto' : 'none'}>
-      {/* Semi-transparent dark backdrop */}
-      <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-        <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
-          activeOpacity={1}
-          onPress={() => onClose && onClose()}
-          accessibilityRole="button"
-          accessibilityLabel="Dismiss navigation panel"
-        />
-      </Animated.View>
-
-      {/* Floating Close Button at top-left, elevated above backdrop */}
-      <Animated.View
-        style={[
-          styles.floatingCloseBtnWrapper,
-          {
-            top: insets.top + (Platform.OS === 'ios' ? 10 : 12),
-            opacity: animValue
-          }
-        ]}
-      >
-        <HamburgerButton
-          isOpen={true}
-          animValue={animValue}
-          onPress={() => onClose && onClose()}
-        />
-      </Animated.View>
-
-      {/* Slide-in Panel from Right */}
-      <Animated.View
-        {...panResponder.panHandlers}
-        style={[
-          styles.panel,
-          {
-            width: PANEL_WIDTH,
-            paddingTop: insets.top + SPACING.md,
-            paddingBottom: insets.bottom + SPACING.lg,
-            transform: [{ translateX: panelTranslateX }]
-          }
-        ]}
-      >
-        {/* Panel Header */}
-        <View style={styles.panelHeader}>
-          <View style={styles.brandRow}>
-            <AppLogo size={24} variant="gold" />
-            <Text
-              allowFontScaling={false}
-              style={[
-                styles.brandTitle,
-                {
-                  fontFamily: fontLoaded
-                    ? 'YesevaOne_400Regular'
-                    : Platform.OS === 'ios' ? 'Georgia' : 'serif'
-                }
-              ]}
-            >
-              Arth
-            </Text>
-          </View>
-
+    <Modal
+      visible={isOpen}
+      transparent={true}
+      animationType="none"
+      statusBarTranslucent={true}
+      onRequestClose={() => onClose && onClose()}
+    >
+      <View style={styles.modalRoot}>
+        {/* Semi-transparent dark backdrop */}
+        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
           <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
             onPress={() => onClose && onClose()}
-            style={styles.headerCloseTouch}
             accessibilityRole="button"
-            accessibilityLabel="Close panel"
-          >
-            <Text style={styles.closeSymbol}>✕</Text>
-          </TouchableOpacity>
-        </View>
+            accessibilityLabel="Dismiss navigation panel"
+          />
+        </Animated.View>
 
-        {/* Subtle Gold Divider */}
-        <View style={styles.goldDivider} />
-
-        {/* Menu Items List & Team Card */}
-        <ScrollView
-          style={styles.scrollArea}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
+        {/* Floating Close Button at top-left, elevated above backdrop */}
+        <Animated.View
+          style={[
+            styles.floatingCloseBtnWrapper,
+            {
+              top: floatingButtonTop,
+              opacity: animValue
+            }
+          ]}
         >
-          <View style={styles.itemsList}>
-            {DRAWER_MENU_ITEMS.map((item, idx) => (
-              <DrawerItem
-                key={item.id}
-                item={item}
-                staggerAnim={staggerAnims[idx]}
-                onPress={handleItemPress}
-              />
-            ))}
+          <HamburgerButton
+            isOpen={true}
+            animValue={animValue}
+            onPress={() => onClose && onClose()}
+          />
+        </Animated.View>
+
+        {/* Slide-in Panel from Right */}
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={[
+            styles.panel,
+            {
+              width: panelWidth,
+              paddingTop: insets.top + SPACING.md,
+              paddingBottom: insets.bottom + SPACING.lg,
+              transform: [{ translateX: panelTranslateX }]
+            }
+          ]}
+        >
+          {/* Panel Header */}
+          <View style={styles.panelHeader}>
+            <View style={styles.brandRow}>
+              <AppLogo size={24} variant="gold" />
+              <Text
+                allowFontScaling={false}
+                style={[
+                  styles.brandTitle,
+                  {
+                    fontFamily: fontLoaded
+                      ? 'YesevaOne_400Regular'
+                      : Platform.OS === 'ios' ? 'Georgia' : 'serif'
+                  }
+                ]}
+              >
+                Arth
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => onClose && onClose()}
+              style={styles.headerCloseTouch}
+              accessibilityRole="button"
+              accessibilityLabel="Close panel"
+            >
+              <Text style={styles.closeSymbol}>✕</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Aryan Desale Team Card */}
-          <TeamCard staggerAnim={teamAnim} />
-        </ScrollView>
-      </Animated.View>
-    </View>
+          {/* Subtle Gold Divider */}
+          <View style={styles.goldDivider} />
+
+          {/* Menu Items List & Team Card */}
+          <ScrollView
+            style={styles.scrollArea}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            <View style={styles.itemsList}>
+              {DRAWER_MENU_ITEMS.map((item, idx) => (
+                <DrawerItem
+                  key={item.id}
+                  item={item}
+                  staggerAnim={staggerAnims[idx]}
+                  onPress={handleItemPress}
+                />
+              ))}
+            </View>
+
+            {/* Aryan Desale Team Card */}
+            <TeamCard staggerAnim={teamAnim} />
+          </ScrollView>
+        </Animated.View>
+      </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  absoluteOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 99999,
-    elevation: 20
+  modalRoot: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    position: 'relative'
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

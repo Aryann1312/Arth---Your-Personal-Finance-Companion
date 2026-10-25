@@ -13,18 +13,12 @@ export function useSideDrawer() {
 
   const openDrawer = useCallback(() => {
     setIsOpen(true);
-    Animated.timing(animValue, {
-      toValue: 1,
-      duration: 320,
-      easing: Easing.inOut(Easing.cubic),
-      useNativeDriver: true
-    }).start();
-  }, [animValue]);
+  }, []);
 
   const closeDrawer = useCallback((onComplete) => {
     Animated.timing(animValue, {
       toValue: 0,
-      duration: 280,
+      duration: 260,
       easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true
     }).start(({ finished }) => {

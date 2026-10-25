@@ -920,6 +920,23 @@ export function GoldLoanScreen({ navigation }) {
               </Animated.View>
             </View>
           )}
+
+          {/* Bottom Saved Calculations Button Aligned to Middle at Bottom-most */}
+          <View style={styles.bottomSavedContainer}>
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                navigation.navigate('SavedGoldLoans');
+              }}
+              style={styles.bottomSavedButton}
+              accessibilityRole="button"
+              accessibilityLabel="Saved Calculations"
+              activeOpacity={0.75}
+            >
+              <Ionicons name="bookmark-outline" size={15} color={COLORS.goldDeep} />
+              <Text style={styles.bottomSavedButtonText}>Saved</Text>
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
 
         {/* Save Modal */}
@@ -973,6 +990,36 @@ const styles = StyleSheet.create({
   keyboardContainer: {
     width: '100%',
     alignItems: 'center'
+  },
+  bottomSavedContainer: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.xl,
+    marginBottom: SPACING.lg
+  },
+  bottomSavedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: RADII.full,
+    backgroundColor: COLORS.goldLightBg,
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.4)',
+    shadowColor: COLORS.goldDeep,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2
+  },
+  bottomSavedButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.goldDeep,
+    letterSpacing: 0.3
   },
   tabletWrapper: {
     width: '100%',

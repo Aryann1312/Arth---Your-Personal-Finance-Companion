@@ -58,25 +58,13 @@ const GoldStack = createNativeStackNavigator();
 const GoldLoanStack = createNativeStackNavigator();
 const EMIStack = createNativeStackNavigator();
 
-// Unified Header Action Buttons (Saved, History, Profile Avatar) evenly spaced with no overlap
-function HeaderRightActions({ navigation, savedRoute }) {
+// Unified Header Action Buttons (Profile Avatar)
+function HeaderRightActions({ navigation }) {
   const { user } = useAuth();
   const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : 'AR';
 
   return (
     <View style={styles.headerButtonsRow}>
-      {savedRoute ? (
-        <TouchableOpacity
-          onPress={() => navigation.navigate(savedRoute)}
-          style={styles.headerSavedBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Saved Calculations"
-          activeOpacity={0.75}
-        >
-          <Text style={styles.savedBtnText}>Saved</Text>
-        </TouchableOpacity>
-      ) : null}
-
       <TouchableOpacity
         onPress={() => navigation.navigate('Profile')}
         style={styles.avatarButton}
@@ -179,12 +167,7 @@ function GoldLoanNavigator({ navigation }) {
         options={{
           headerTitleAlign: 'left',
           headerTitle: () => <HeaderBrandTitle />,
-          headerRight: () => (
-            <HeaderRightActions
-              navigation={navigation}
-              savedRoute="SavedGoldLoans"
-            />
-          )
+          headerRight: () => <HeaderRightActions navigation={navigation} />
         }}
       />
       <GoldLoanStack.Screen name="SavedGoldLoans" component={SavedGoldLoansScreen} options={{ title: 'Saved Gold Loans' }} />
@@ -202,12 +185,7 @@ function EMINavigator({ navigation }) {
         options={{
           headerTitleAlign: 'left',
           headerTitle: () => <HeaderBrandTitle />,
-          headerRight: () => (
-            <HeaderRightActions
-              navigation={navigation}
-              savedRoute="SavedEMI"
-            />
-          )
+          headerRight: () => <HeaderRightActions navigation={navigation} />
         }}
       />
       <EMIStack.Screen name="SavedEMI" component={SavedEMIScreen} options={{ title: 'Saved EMI Calculations' }} />
@@ -375,32 +353,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.textPrimary,
     letterSpacing: 0.3
-  },
-  headerSavedBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: RADII.sm,
-    backgroundColor: COLORS.goldLightBg,
-    borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.35)'
-  },
-  savedBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.goldDeep
-  },
-  headerHistoryBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: RADII.sm,
-    backgroundColor: COLORS.surfaceMuted,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight
-  },
-  historyBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textSecondary
   },
   avatarButton: {
     width: 32,

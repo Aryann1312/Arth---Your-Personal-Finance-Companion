@@ -18,10 +18,17 @@ import { StyleSheet, Platform, AppState, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
-import { Ultra_400Regular } from '@expo-google-fonts/ultra';
 
 import { ArthWordmarkIntro } from '../../components/ArthWordmarkIntro.js';
 import { useAuth } from '../../context/AuthContext.js';
+
+// Safe local asset reference for Yeseva One font
+let localYesevaFont = null;
+try {
+  localYesevaFont = require('../../../assets/fonts/YesevaOne_400Regular.ttf');
+} catch (e) {
+  console.warn('[IntroScreen] Local YesevaOne font asset missing, fallback active:', e?.message || e);
+}
 
 // Prevent native splash from hiding automatically until fonts are verified/ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -42,15 +49,19 @@ export function IntroScreen({ navigation, onIntroComplete }) {
 
     async function loadFontAndPrepare() {
       try {
-        const fontPromise = Font.loadAsync({ Ultra_400Regular });
-        const timeoutPromise = new Promise((resolve) => {
-          fallbackTimer = setTimeout(() => resolve('timeout'), 3000);
-        });
+        if (localYesevaFont) {
+          const fontPromise = Font.loadAsync({
+            YesevaOne_400Regular: localYesevaFont
+          });
+          const timeoutPromise = new Promise((resolve) => {
+            fallbackTimer = setTimeout(() => resolve('timeout'), 3000);
+          });
 
-        const outcome = await Promise.race([fontPromise, timeoutPromise]);
-        if (outcome !== 'timeout' && isMounted) {
-          clearTimeout(fallbackTimer);
-          setFontFamilyName('Ultra_400Regular');
+          const outcome = await Promise.race([fontPromise, timeoutPromise]);
+          if (outcome !== 'timeout' && isMounted) {
+            clearTimeout(fallbackTimer);
+            setFontFamilyName('YesevaOne_400Regular');
+          }
         }
       } catch (err) {
         console.warn('[IntroScreen] Font loading fallback activated:', err?.message || err);
@@ -109,7 +120,7 @@ export function IntroScreen({ navigation, onIntroComplete }) {
     <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
       <ArthWordmarkIntro
         text="Arth"
-        fontSize={160}
+        fontSize={68}
         ink="#111111"
         background="#FAF8F5"
         deckColors={['#D4AF37', '#8A6D1A', '#E9CF7A', '#5C4710', '#F5E6A8']}

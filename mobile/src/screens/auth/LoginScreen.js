@@ -5,6 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext.js';
 import { PearlCard } from '../../components/PearlCard.js';
 import { Input } from '../../components/Input.js';
@@ -15,6 +16,7 @@ import { AppLogo } from '../../components/AppLogo.js';
 import { COLORS, RADII, SPACING, useResponsiveLayout } from '../../theme/index.js';
 
 export function LoginScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const { login } = useAuth();
   const { isTablet, horizontalPadding } = useResponsiveLayout();
 
@@ -53,12 +55,20 @@ export function LoginScreen({ navigation }) {
       style={styles.keyboardContainer}
     >
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: horizontalPadding }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingHorizontal: horizontalPadding,
+            paddingTop: insets.top,
+            paddingBottom: Math.max(insets.bottom, SPACING.md)
+          }
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        <View style={[styles.innerContainer, isTablet && styles.tabletContainer]}>
+        <View style={styles.centerStage}>
+          <View style={[styles.innerContainer, isTablet && styles.tabletContainer]}>
           <View style={styles.header}>
             <View style={styles.logoBadgeWrapper}>
               <AppLogo size={54} variant="gold" />
@@ -134,9 +144,10 @@ export function LoginScreen({ navigation }) {
             <Text style={styles.backHomeText}>← Back to Explorer</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
+      </View>
+    </ScrollView>
+  </KeyboardAvoidingView>
+);
 }
 
 const styles = StyleSheet.create({
@@ -145,12 +156,18 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background
   },
   scrollContent: {
-    flexGrow: 1,
-    paddingTop: SPACING.xl,
-    paddingBottom: SPACING.huge
+    flexGrow: 1
+  },
+  centerStage: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+    width: '100%'
   },
   innerContainer: {
     width: '100%',
+    maxWidth: 440,
     alignSelf: 'center'
   },
   tabletContainer: {

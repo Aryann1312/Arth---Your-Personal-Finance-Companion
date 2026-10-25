@@ -19,7 +19,8 @@ export function SliderInput({
   prefix,
   suffix,
   quickOptions = [],
-  style
+  style,
+  labelStyle
 }) {
   const numericVal = Number(value) || min;
 
@@ -40,7 +41,7 @@ export function SliderInput({
     <View style={[styles.container, style]}>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={styles.label}>{label}</Text>
+          <Text style={[styles.label, labelStyle]}>{label}</Text>
           {isCurrency && numericVal > 0 && (
             <Text style={styles.groupedHint}>({formatINR(numericVal, true)})</Text>
           )}

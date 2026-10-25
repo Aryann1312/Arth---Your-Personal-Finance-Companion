@@ -188,8 +188,8 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md
   },
   avatarImage: {
-    width: 72,
-    height: 72
+    width: 56,
+    height: 56
   },
   userName: {
     fontSize: 20,

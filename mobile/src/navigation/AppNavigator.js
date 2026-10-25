@@ -375,8 +375,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   avatarImage: {
-    width: 28,
-    height: 28
+    width: 22,
+    height: 22
   },
   headerSettingsBtn: {
     width: 34,

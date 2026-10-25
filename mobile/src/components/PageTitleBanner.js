@@ -1,13 +1,13 @@
 /**
  * @file PageTitleBanner.js
- * @description Luxury centered page title banner with Yeseva One serif typography in gold,
+ * @description Luxury centered page title banner with Yeseva One serif typography in bright gold (#EFBF04),
  * and high-contrast bold black centered description.
  */
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import * as Font from 'expo-font';
-import { COLORS, SPACING } from '../theme/index.js';
+import { SPACING } from '../theme/index.js';
 
 let localYesevaFont = null;
 try {
@@ -29,7 +29,7 @@ export function PageTitleBanner({ title, description, style }) {
     if (!isFontReady && localYesevaFont) {
       Font.loadAsync({ YesevaOne_400Regular: localYesevaFont })
         .then(() => setIsFontReady(true))
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [isFontReady]);
 
@@ -70,14 +70,14 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.lg,
+    paddingTop: 65,
+    paddingBottom: 60,
     paddingHorizontal: SPACING.lg
   },
   title: {
-    fontSize: 34,
+    fontSize: 45,
     fontWeight: '700',
-    color: COLORS.goldDeep,
+    color: '#EFBF04',
     textAlign: 'center',
     letterSpacing: 2.2,
     textTransform: 'uppercase'
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     color: '#111111',
     textAlign: 'center',
     lineHeight: 20,
-    marginTop: 8,
+    marginTop: 12,
     maxWidth: 330,
     alignSelf: 'center'
   }

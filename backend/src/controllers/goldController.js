@@ -40,7 +40,7 @@ export async function getGoldHistory(req, res, next) {
     cutoffDate.setDate(cutoffDate.getDate() - days);
     const cutoffStr = cutoffDate.toISOString().slice(0, 10);
 
-    const records = await GoldPrice.find({
+    let records = await GoldPrice.find({
       purity,
       unit: 'gram',
       currency: 'INR',
@@ -49,8 +49,22 @@ export async function getGoldHistory(req, res, next) {
       .sort({ observationDate: 1 })
       .lean();
 
+    if (!records || records.length === 0) {
+      const generated = await goldDataManager.wgcAdapter.fetchHistoricalDaily({
+        startDate: cutoffStr,
+        endDate: new Date().toISOString().slice(0, 10),
+        purity,
+        unit: 'gram',
+        currency: 'INR'
+      });
+      if (generated && generated.length > 0) {
+        records = generated;
+        GoldPrice.insertMany(generated, { ordered: false }).catch(() => {});
+      }
+    }
+
     const formattedRecords = records.map(r => ({
-      date: r.observationDate,
+      date: r.observationDate || r.date,
       price: r.price,
       currency: r.currency,
       purity: r.purity,

@@ -28,20 +28,24 @@ async function backfill() {
     console.log(`[Backfill] Date range: ${startDate} to ${endDate}`);
     console.log(`[Backfill] Provider:   ${adapter.name}`);
 
-    // Fetch daily 24K and 22K per gram and 10g series
+    // Fetch daily 24K, 22K, and 18K per gram and 10g series
     console.log('[Backfill] Generating verified daily trading series...');
-    const [records24kGram, records22kGram, records24k10g, records22k10g] = await Promise.all([
+    const [records24kGram, records22kGram, records18kGram, records24k10g, records22k10g, records18k10g] = await Promise.all([
       adapter.fetchHistoricalDaily({ startDate, endDate, purity: '24K', unit: 'gram', currency: 'INR' }),
       adapter.fetchHistoricalDaily({ startDate, endDate, purity: '22K', unit: 'gram', currency: 'INR' }),
+      adapter.fetchHistoricalDaily({ startDate, endDate, purity: '18K', unit: 'gram', currency: 'INR' }),
       adapter.fetchHistoricalDaily({ startDate, endDate, purity: '24K', unit: '10g', currency: 'INR' }),
-      adapter.fetchHistoricalDaily({ startDate, endDate, purity: '22K', unit: '10g', currency: 'INR' })
+      adapter.fetchHistoricalDaily({ startDate, endDate, purity: '22K', unit: '10g', currency: 'INR' }),
+      adapter.fetchHistoricalDaily({ startDate, endDate, purity: '18K', unit: '10g', currency: 'INR' })
     ]);
 
     const allRecords = [
       ...records24kGram,
       ...records22kGram,
+      ...records18kGram,
       ...records24k10g,
-      ...records22k10g
+      ...records22k10g,
+      ...records18k10g
     ];
 
     console.log(`[Backfill] Total candidate trading records generated: ${allRecords.length}`);
@@ -70,16 +74,29 @@ async function backfill() {
     // Update LivePriceCache with latest observation
     const latest24k = records24kGram[records24kGram.length - 1];
     const latest22k = records22kGram[records22kGram.length - 1];
+    const latest18k = records18kGram[records18kGram.length - 1];
 
-    if (latest24k && latest22k) {
+    if (latest24k && latest22k && latest18k) {
       await LivePriceCache.findOneAndUpdate(
         { cacheKey: 'live_gold_india' },
         {
           cacheKey: 'live_gold_india',
           price24kPerGram: latest24k.price,
           price22kPerGram: latest22k.price,
+          price18kPerGram: latest18k.price,
           price24kPer10g: Math.round(latest24k.price * 10 * 100) / 100,
           price22kPer10g: Math.round(latest22k.price * 10 * 100) / 100,
+          price18kPer10g: Math.round(latest18k.price * 10 * 100) / 100,
+          inrPerGram: {
+            '24K': latest24k.price,
+            '22K': latest22k.price,
+            '18K': latest18k.price
+          },
+          inrPer10g: {
+            '24K': Math.round(latest24k.price * 10 * 100) / 100,
+            '22K': Math.round(latest22k.price * 10 * 100) / 100,
+            '18K': Math.round(latest18k.price * 10 * 100) / 100
+          },
           currency: 'INR',
           basis: 'indicative_derived_spot',
           sourceName: adapter.name,

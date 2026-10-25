@@ -4,15 +4,21 @@
  * 5-year interactive historical chart, touch tooltips, and stale-data indicators.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   RefreshControl,
-  TouchableOpacity
+  TouchableOpacity,
+  Animated,
+  Platform,
+  UIManager,
+  LayoutAnimation
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
 import { PearlCard } from '../../components/PearlCard.js';
 import { MiniGoldChart } from '../../components/MiniGoldChart.js';
 import { GoldButton } from '../../components/GoldButton.js';
@@ -26,6 +32,24 @@ import { apiRequest } from '../../services/api.js';
 import { useGoldPrice } from '../../context/GoldPriceContext.js';
 import { logger } from '../../services/eventLogger.js';
 
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+function ChevronDownIcon({ color = COLORS.goldDeep, size = 18 }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M6 9L12 15L18 9"
+        stroke={color}
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export function GoldOverviewScreen({ navigation }) {
   const { goldPrice, loading: priceLoading, refreshGoldPrice, getRateForPurity, getRetailForPurity } = useGoldPrice();
   const [historyRecords, setHistoryRecords] = useState([]);
@@ -35,6 +59,31 @@ export function GoldOverviewScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+
+  // Dropdown Accordion State for Indian Domestic Retail Estimate
+  const [isRetailExpanded, setIsRetailExpanded] = useState(false);
+  const arrowAnim = useRef(new Animated.Value(0)).current;
+
+  const toggleRetailDropdown = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {
+      // Haptics fallback on unsupported platforms
+    }
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const nextState = !isRetailExpanded;
+    setIsRetailExpanded(nextState);
+    Animated.timing(arrowAnim, {
+      toValue: nextState ? 1 : 0,
+      duration: 250,
+      useNativeDriver: Platform.OS !== 'web'
+    }).start();
+  };
+
+  const arrowRotation = arrowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg']
+  });
 
   // Fetch Historical Series
   const loadHistory = async (range = selectedRange, purity = selectedPurity) => {
@@ -143,16 +192,18 @@ export function GoldOverviewScreen({ navigation }) {
                 per gram ({goldPrice?.inrPer10g?.['22K'] ? `${formatINR(goldPrice.inrPer10g['22K'])} / 10g` : 'Rate unavailable'})
               </Text>
             </View>
-          </View>
-        )}
 
-        {/* 18K Benchmark Row */}
-        {!priceLoading && goldPrice?.inrPerGram?.['18K'] && (
-          <View style={styles.row18k}>
-            <Text style={styles.pricePurityTitle}>18K Hallmark (75.0%):</Text>
-            <Text style={styles.price18kText}>
-              {formatINR(goldPrice.inrPerGram['18K'])} / g ({formatINR(goldPrice.inrPer10g['18K'])} / 10g)
-            </Text>
+            <View style={styles.priceDivider} />
+
+            <View style={styles.priceBox}>
+              <Text style={styles.pricePurityTitle}>18K Hallmark (75.0%)</Text>
+              <Text style={styles.priceBig}>
+                {goldPrice?.inrPerGram?.['18K'] ? formatINR(goldPrice.inrPerGram['18K']) : 'Unavailable'}
+              </Text>
+              <Text style={styles.priceUnitLabel}>
+                per gram ({goldPrice?.inrPer10g?.['18K'] ? `${formatINR(goldPrice.inrPer10g['18K'])} / 10g` : 'Rate unavailable'})
+              </Text>
+            </View>
           </View>
         )}
 
@@ -174,34 +225,6 @@ export function GoldOverviewScreen({ navigation }) {
         )}
       </PearlCard>
 
-      {/* 2. Indian Domestic Retail Estimate Card */}
-      <PearlCard style={styles.retailCard}>
-        <Text style={styles.retailCardTitle}>Indian Retail Estimate</Text>
-        <Text style={styles.retailCardSub}>
-          Includes 6% Basic Customs Duty (as of Union Budget July 2024), 1% local premium, and 3% domestic GST.
-        </Text>
-        <View style={styles.retailGrid}>
-          <View style={styles.retailCol}>
-            <Text style={styles.retailColLabel}>24K Retail</Text>
-            <Text style={styles.retailColPrice}>
-              {goldPrice?.retailEstimatePerGram?.['24K'] ? formatINR(goldPrice.retailEstimatePerGram['24K']) : 'Unavailable'}
-            </Text>
-          </View>
-          <View style={styles.retailCol}>
-            <Text style={styles.retailColLabel}>22K Retail</Text>
-            <Text style={styles.retailColPrice}>
-              {goldPrice?.retailEstimatePerGram?.['22K'] ? formatINR(goldPrice.retailEstimatePerGram['22K']) : 'Unavailable'}
-            </Text>
-          </View>
-          <View style={styles.retailCol}>
-            <Text style={styles.retailColLabel}>18K Retail</Text>
-            <Text style={styles.retailColPrice}>
-              {goldPrice?.retailEstimatePerGram?.['18K'] ? formatINR(goldPrice.retailEstimatePerGram['18K']) : 'Unavailable'}
-            </Text>
-          </View>
-        </View>
-      </PearlCard>
-
       {/* Purity Hallmark Selector (24K, 22K, 18K) */}
       <View style={styles.purityToggleRow}>
         {['24K', '22K', '18K'].map((p) => {
@@ -219,28 +242,6 @@ export function GoldOverviewScreen({ navigation }) {
             </TouchableOpacity>
           );
         })}
-      </View>
-
-      {/* Navigation Quick Actions */}
-      <View style={styles.quickNavRow}>
-        <GoldButton
-          title="Compare Dates"
-          variant="secondary"
-          onPress={() => navigation.navigate('CompareDates')}
-          style={styles.quickNavBtn}
-          buttonStyle={styles.quickNavBtnInner}
-          textStyle={styles.quickNavBtnText}
-          numberOfLines={1}
-        />
-        <GoldButton
-          title="Data Methodology"
-          variant="secondary"
-          onPress={() => navigation.navigate('DataSourceInfo')}
-          style={styles.quickNavBtn}
-          buttonStyle={styles.quickNavBtnInner}
-          textStyle={styles.quickNavBtnText}
-          numberOfLines={1}
-        />
       </View>
     </View>
   );
@@ -310,13 +311,79 @@ export function GoldOverviewScreen({ navigation }) {
           * Indicative international spot converted to INR. Excludes Indian Customs Duty (~6%) and 3% domestic GST.
         </Text>
       </PearlCard>
+
+      {/* Navigation Quick Actions - Moved Below Historical Performance Table */}
+      <View style={styles.quickNavRow}>
+        <GoldButton
+          title="Compare Dates"
+          variant="secondary"
+          onPress={() => navigation.navigate('CompareDates')}
+          style={styles.quickNavBtn}
+          buttonStyle={styles.quickNavBtnInner}
+          textStyle={styles.quickNavBtnText}
+          numberOfLines={1}
+        />
+        <GoldButton
+          title="Data Methodology"
+          variant="secondary"
+          onPress={() => navigation.navigate('DataSourceInfo')}
+          style={styles.quickNavBtn}
+          buttonStyle={styles.quickNavBtnInner}
+          textStyle={styles.quickNavBtnText}
+          numberOfLines={1}
+        />
+      </View>
+
+      {/* 3. Indian Domestic Retail Estimate Collapsible Dropdown Card */}
+      <PearlCard style={styles.retailCard}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={toggleRetailDropdown}
+          style={styles.retailHeaderTouch}
+          accessibilityRole="button"
+          accessibilityLabel="Toggle Indian Retail Estimate breakdown"
+        >
+          <Text style={styles.retailCardTitle}>Indian Retail Estimate</Text>
+          <Animated.View style={[styles.arrowContainer, { transform: [{ rotate: arrowRotation }] }]}>
+            <ChevronDownIcon color={COLORS.goldDeep} size={18} />
+          </Animated.View>
+        </TouchableOpacity>
+
+        {isRetailExpanded && (
+          <View style={styles.retailExpandedContent}>
+            <Text style={styles.retailCardSub}>
+              Includes 6% Basic Customs Duty (as of Union Budget July 2024), 1% local premium, and 3% domestic GST.
+            </Text>
+            <View style={styles.retailGrid}>
+              <View style={styles.retailCol}>
+                <Text style={styles.retailColLabel}>24K Retail</Text>
+                <Text style={styles.retailColPrice}>
+                  {goldPrice?.retailEstimatePerGram?.['24K'] ? formatINR(goldPrice.retailEstimatePerGram['24K']) : 'Unavailable'}
+                </Text>
+              </View>
+              <View style={styles.retailCol}>
+                <Text style={styles.retailColLabel}>22K Retail</Text>
+                <Text style={styles.retailColPrice}>
+                  {goldPrice?.retailEstimatePerGram?.['22K'] ? formatINR(goldPrice.retailEstimatePerGram['22K']) : 'Unavailable'}
+                </Text>
+              </View>
+              <View style={styles.retailCol}>
+                <Text style={styles.retailColLabel}>18K Retail</Text>
+                <Text style={styles.retailColPrice}>
+                  {goldPrice?.retailEstimatePerGram?.['18K'] ? formatINR(goldPrice.retailEstimatePerGram['18K']) : 'Unavailable'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+      </PearlCard>
     </View>
   );
 
   const renderHeader = (
     <PageTitleBanner
       title="GOLD RATE"
-      description={`Live Spot benchmarks, retail estimates, and\n5-years historical market trends`}
+      description={`Live Spot benchmarks, retail estimates, \nand 5-years historical market trends`}
     />
   );
 
@@ -391,34 +458,37 @@ const styles = StyleSheet.create({
     color: COLORS.goldDeep,
     marginBottom: SPACING.sm
   },
-  row18k: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 6,
-    paddingVertical: SPACING.xs,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-    marginTop: 6
-  },
-  price18kText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: COLORS.textPrimary
-  },
   retailCard: {
-    padding: SPACING.md,
-    marginTop: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
     backgroundColor: '#FAF5EE',
     borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.25)'
+    borderColor: 'rgba(212, 175, 55, 0.25)',
+    marginBottom: SPACING.xl
+  },
+  retailHeaderTouch: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
   },
   retailCardTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: COLORS.goldDeep,
-    marginBottom: 2
+    color: COLORS.goldDeep
+  },
+  arrowContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(212, 175, 55, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  retailExpandedContent: {
+    marginTop: SPACING.sm + 2,
+    paddingTop: SPACING.sm + 2,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(212, 175, 55, 0.18)'
   },
   retailCardSub: {
     fontSize: 11,
@@ -529,6 +599,7 @@ const styles = StyleSheet.create({
   quickNavRow: {
     flexDirection: 'row',
     gap: 10,
+    marginTop: SPACING.md,
     marginBottom: SPACING.md
   },
   quickNavBtn: {

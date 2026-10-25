@@ -129,6 +129,11 @@ export function ProfileScreen({ navigation }) {
       <PearlCard style={styles.actionsCard}>
         <Text style={styles.sectionTitle}>Account & Preferences</Text>
 
+        <TouchableOpacity onPress={() => navigation.navigate('MyHistory')} style={styles.actionRow}>
+          <Text style={styles.actionRowText}>📜 My Interaction History</Text>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.actionRow}>
           <Text style={styles.actionRowText}>⚙️ App Settings & Motion</Text>
           <Text style={styles.chevron}>›</Text>

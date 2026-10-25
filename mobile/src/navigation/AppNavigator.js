@@ -78,16 +78,6 @@ function HeaderRightActions({ navigation, savedRoute }) {
       ) : null}
 
       <TouchableOpacity
-        onPress={() => navigation.navigate('MyHistory')}
-        style={styles.headerHistoryBtn}
-        accessibilityRole="button"
-        accessibilityLabel="My History"
-        activeOpacity={0.75}
-      >
-        <Text style={styles.historyBtnText}>History</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
         onPress={() => navigation.navigate('Profile')}
         style={styles.avatarButton}
         accessibilityRole="button"

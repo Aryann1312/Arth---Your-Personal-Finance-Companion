@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "5dc24779-7428-40ad-8253-e5f239ef4fed"
+      }
+    },
+    "android": {
+      "package": "com.aryann13.goldloancalculatorsuite"
+    }
+  }
+}

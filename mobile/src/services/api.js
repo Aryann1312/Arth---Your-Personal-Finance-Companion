@@ -15,15 +15,18 @@ const REFRESH_TOKEN_KEY = 'gold_calc_refresh_token';
 export const getCandidateUrls = () => {
   const list = [];
 
-  // When on Android emulator with adb reverse, 127.0.0.1 / localhost is the fastest & zero-latency
-  if (Platform.OS === 'android') {
-    list.push('http://127.0.0.1:5000/api');
-    list.push('http://10.0.2.2:5000/api');
-    list.push('http://localhost:5000/api');
-  }
+  // Use the computer's LAN address first for a physical phone
+  list.push('http://192.168.1.7:5000/api');
 
   if (process.env.EXPO_PUBLIC_API_BASE_URL) {
     list.push(process.env.EXPO_PUBLIC_API_BASE_URL.replace(/\/+$/, ''));
+  }
+
+  // When on Android emulator with adb reverse, 127.0.0.1 / localhost is the fastest & zero-latency
+  if (Platform.OS === 'android') {
+    list.push('http://10.0.2.2:5000/api');
+    list.push('http://127.0.0.1:5000/api');
+    list.push('http://localhost:5000/api');
   }
 
   // Metro scriptURL IP (points to the machine running Metro)
@@ -104,7 +107,7 @@ export async function getOrDiscoverBaseUrl() {
 // Warm up discovery in background on startup
 getOrDiscoverBaseUrl().catch(() => { });
 
-export const API_BASE_URL = 'http://127.0.0.1:5000/api';
+export const API_BASE_URL = 'http://192.168.1.7:5000/api';
 
 /**
  * Token management using expo-secure-store

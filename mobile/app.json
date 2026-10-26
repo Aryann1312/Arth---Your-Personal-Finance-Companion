@@ -1,17 +1,11 @@
 {
   "expo": {
     "name": "Arth",
-    "slug": "arth",
+    "slug": "gold-loan-calculator-suite",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FAF8F5"
-    },
     "ios": {
       "supportsTablet": true
     },
@@ -26,7 +20,21 @@
       "expo-font",
       "expo-secure-store",
       "expo-asset",
-      "expo-splash-screen"
-    ]
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#FAF8F5"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5dc24779-7428-40ad-8253-e5f239ef4fed"
+      }
+    },
+    "owner": "aryann13"
   }
 }

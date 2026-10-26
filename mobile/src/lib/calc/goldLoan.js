@@ -241,7 +241,7 @@ export function calculateGoldLoan({
   sourceName = 'World Gold Council (Goldhub) & LBMA',
   isManualOverride = false,
   isLiveMarket = true
-}) {
+} = {}) {
   const grossW = Math.max(0, Number(weight) || 0);
   const tenure = Math.max(1, Math.round(Number(tenureMonths) || 12));
 

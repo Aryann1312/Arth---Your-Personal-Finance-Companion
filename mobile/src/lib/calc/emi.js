@@ -16,14 +16,15 @@
  * @param {Object} params
  * @returns {{principal: number, annualRate: number, tenureMonths: number, processingFee: number, feeType: string, financeFee: boolean}}
  */
-function sanitizeEmiInputs({
-  principal = 0,
-  annualRate = 0,
-  tenureMonths = 1,
-  processingFee = 0,
-  feeType = 'percent',
-  financeFee = false
-}) {
+function sanitizeEmiInputs(params = {}) {
+  const {
+    principal = 0,
+    annualRate = 0,
+    tenureMonths = 1,
+    processingFee = 0,
+    feeType = 'percent',
+    financeFee = false
+  } = params || {};
   const p = Math.max(0, Number(principal) || 0);
   const r = Math.max(0, Math.min(100, Number(annualRate) || 0));
   const n = Math.max(1, Math.round(Number(tenureMonths) || 1));
@@ -117,10 +118,10 @@ export function calculateEMI(params) {
  * @param {boolean} [params.financeFee=false] - Whether fee is financed
  * @returns {Object} Complete amortization schedule, reconciliation flags, and prepayment savings
  */
-export function generateAmortizationSchedule(params) {
+export function generateAmortizationSchedule(params = {}) {
   const { principal, annualRate, tenureMonths, processingFee, feeType, financeFee } = sanitizeEmiInputs(params);
-  const extraMonthlyPayment = Math.max(0, Number(params.extraMonthlyPayment) || 0);
-  const prepaymentsList = Array.isArray(params.prepayments) ? params.prepayments : [];
+  const extraMonthlyPayment = Math.max(0, Number(params?.extraMonthlyPayment) || 0);
+  const prepaymentsList = Array.isArray(params?.prepayments) ? params.prepayments : [];
 
   // Map lump sum prepayments by month
   const lumpSumsByMonth = new Map();

@@ -78,6 +78,9 @@ export async function getMyCalculations(req, res, next) {
 export async function deleteCalculation(req, res, next) {
   try {
     const { id } = req.params;
+    if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid calculation ID format.' });
+    }
     const deleted = await SavedCalculation.findOneAndDelete({
       _id: id,
       userId: req.user.id

@@ -22,7 +22,15 @@ export function resolvePurity(purity) {
     }
   }
 
-  const num = Number(purity);
+  // Parse numeric karat from number or string with K suffix (e.g. 14, '14', '14K', '14 k')
+  let num = NaN;
+  if (typeof purity === 'number') {
+    num = purity;
+  } else if (typeof purity === 'string') {
+    const cleaned = purity.replace(/[^0-9.]/g, '');
+    num = parseFloat(cleaned);
+  }
+
   if (!isNaN(num) && num > 0) {
     if (num >= 23.5) return { karat: 24, factor: PURITY_FACTORS['24K'], label: '24K (99.9% Fine)' };
     if (num >= 21.5 && num <= 22.5) return { karat: 22, factor: PURITY_FACTORS['22K'], label: '22K (91.6% Hallmark)' };

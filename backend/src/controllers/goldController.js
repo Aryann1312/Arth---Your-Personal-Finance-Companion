@@ -101,13 +101,32 @@ export async function compareDates(req, res, next) {
       return res.status(400).json({ success: false, error: 'Both date1 and date2 are required in YYYY-MM-DD format.' });
     }
 
-    const records = await GoldPrice.find({
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date1) || !dateRegex.test(date2) || isNaN(Date.parse(date1)) || isNaN(Date.parse(date2))) {
+      return res.status(400).json({ success: false, error: 'Dates must be valid dates in YYYY-MM-DD format.' });
+    }
+
+    let records = await GoldPrice.find({
       purity,
       unit: 'gram',
       currency: 'INR'
     })
       .sort({ observationDate: 1 })
       .lean();
+
+    if (!records || records.length === 0) {
+      const generated = await goldDataManager.wgcAdapter.fetchHistoricalDaily({
+        startDate: '2021-01-01',
+        endDate: new Date().toISOString().slice(0, 10),
+        purity,
+        unit: 'gram',
+        currency: 'INR'
+      });
+      if (generated && generated.length > 0) {
+        records = generated;
+        GoldPrice.insertMany(generated, { ordered: false }).catch(() => {});
+      }
+    }
 
     const comparison = compareTwoDates(
       records.map(r => ({ date: r.observationDate, price: r.price })),

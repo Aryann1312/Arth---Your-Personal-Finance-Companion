@@ -15,9 +15,10 @@ export async function listUsers(req, res, next) {
 
     const query = {};
     if (search) {
+      const escapedSearch = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
+        { name: { $regex: escapedSearch, $options: 'i' } },
+        { email: { $regex: escapedSearch, $options: 'i' } }
       ];
     }
     if (role && ['user', 'admin'].includes(role)) {
@@ -72,6 +73,9 @@ export async function listUsers(req, res, next) {
 export async function getUserDetail(req, res, next) {
   try {
     const { id } = req.params;
+    if (!id || !/^[0-9a-fA-F]{24}$/.test(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid user ID format.' });
+    }
     const user = await User.findById(id).lean();
 
     if (!user) {

@@ -62,7 +62,7 @@ export function convertGoldWeight(value, fromUnit = 'gram', toUnit = 'gram') {
  * @param {string|number} [params.purity='24K'] - Target purity ('24K', '22K', '18K')
  * @returns {Object} Derived prices and provenance metadata
  */
-export function deriveINRPriceFromSpot({ xauUsd, usdInr, purity = '24K' }) {
+export function deriveINRPriceFromSpot({ xauUsd, usdInr, purity = '24K' } = {}) {
   const spotUsd = Number(xauUsd) || 0;
   const fxRate = Number(usdInr) || 0;
 
@@ -120,7 +120,7 @@ export function estimateIndianRetailPrice({
   aidcPercent = 0,
   localBullionPremiumPercent = 1.0,
   gstPercent = 3.0
-}) {
+} = {}) {
   const baseRate = Math.max(0, Number(baseDerivedInrPerGram) || 0);
 
   // Import Tariffs
